@@ -26,7 +26,7 @@ export const expenses = sqliteTable("expenses", {
 
 /**
  * 経費明細（1 親に複数行）
- * category: "交通費" | "宿泊費" | "交際費" | "会議費" | "その他"
+ * category: アプリの区分マスタ（`EXPENSE_CATEGORIES`）に合わせた文字列
  */
 export const expenseItems = sqliteTable(
   "expense_items",

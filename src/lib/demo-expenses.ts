@@ -18,7 +18,7 @@ export const DEMO_EXPENSES: Array<
         id: "660e8400-e29b-41d4-a716-446655440001",
         expenseId: "550e8400-e29b-41d4-a716-446655440001",
         date: "2026-05-08",
-        category: "交通費",
+        category: "旅費交通費",
         amount: 14_200,
         description: "新幹線 往復",
         hasReceipt: true,
@@ -83,8 +83,12 @@ export function getDemoExpense(id: string) {
 }
 
 export const EXPENSE_CATEGORIES = [
-  "交通費",
+  "旅費交通費",
   "宿泊費",
+  "荷造運賃",
+  "預り金",
+  "雑費",
+  "消耗品費",
   "交際費",
   "会議費",
   "その他",
