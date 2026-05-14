@@ -11,6 +11,7 @@
     "start": "next start",
     "preview": "npm run build && next start -p 3001",
     "lint": "eslint",
+    "env:check": "node scripts/check-env-lengths.mjs",
     "icons:generate": "node scripts/generate-app-icons.cjs",
     "vercel": "npx vercel@latest"
   },

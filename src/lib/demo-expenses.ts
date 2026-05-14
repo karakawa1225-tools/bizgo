@@ -95,5 +95,6 @@ export const EXPENSE_CATEGORIES = [
   "消耗品費",
   "交際費",
   "会議費",
+  "通信費",
   "その他",
 ] as const;
