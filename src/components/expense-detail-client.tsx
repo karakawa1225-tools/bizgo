@@ -55,6 +55,10 @@ import { BizGoMark } from "@/components/bizgo-mark";
 import { useExpenses } from "@/contexts/expenses-context";
 import { EXPENSE_CATEGORIES } from "@/lib/demo-expenses";
 import {
+  compressReceiptImageToDataUrl,
+  RECEIPT_IMAGE_MAX_EDGE_PX,
+} from "@/lib/receipt-image-compress";
+import {
   CONSUMPTION_TAX_OPTIONS,
   type ConsumptionTaxRateKey,
   isConsumptionTaxRateKey,
@@ -200,15 +204,25 @@ export function ExpenseDetailClient({ expenseId }: Props) {
     return rows;
   }, [expenses, expense]);
 
-  function handleReceiptFile(
+  async function handleReceiptFile(
     ev: React.ChangeEvent<HTMLInputElement>,
     onData: (url: string | null) => void,
   ) {
     const file = ev.target.files?.[0];
     ev.target.value = "";
     if (!file) return;
+    const compressed = await compressReceiptImageToDataUrl(file);
+    if (compressed) {
+      onData(compressed);
+      return;
+    }
+    if (!file.type.startsWith("image/")) {
+      onData(null);
+      return;
+    }
     const reader = new FileReader();
     reader.onload = () => onData(String(reader.result));
+    reader.onerror = () => onData(null);
     reader.readAsDataURL(file);
   }
 
@@ -670,7 +684,8 @@ export function ExpenseDetailClient({ expenseId }: Props) {
                   }
                 }}
               />
-              領収書あり（オンにするとカメラが開きます。未対応の場合は下のボタンから撮影）
+              領収書あり（オンにするとカメラが開きます。写真は長辺最大
+              {RECEIPT_IMAGE_MAX_EDGE_PX}px の JPEG に圧縮して保存します。未対応の場合は下のボタンから撮影）
             </label>
             {hasReceipt ? (
               <div className="flex flex-wrap items-center gap-2">
@@ -1114,7 +1129,8 @@ export function ExpenseDetailClient({ expenseId }: Props) {
                       }
                     }}
                   />
-                  領収書あり（オンでカメラ起動）
+                  領収書あり（オンでカメラ起動。写真は長辺最大
+                  {RECEIPT_IMAGE_MAX_EDGE_PX}px の JPEG に圧縮して保存）
                 </label>
                 <input
                   ref={receiptEditCaptureRef}
