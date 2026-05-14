@@ -52,6 +52,8 @@ export const expenseItems = sqliteTable(
     invoiceNumber: text("invoice_number"),
     /** 領収書写真（data URL。ローカル保存用。本番はオブジェクトストレージ等へ） */
     receiptImageDataUrl: text("receipt_image_data_url"),
+    /** 消費税区分: "0" 非課税 / "8" 軽減8% / "10" 標準10%。`amount` は税込円 */
+    consumptionTaxRate: text("consumption_tax_rate").notNull().default("0"),
   },
   (table) => ({
     expenseIdIdx: index("expense_items_expense_id_idx").on(table.expenseId),

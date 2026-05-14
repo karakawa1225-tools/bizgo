@@ -45,6 +45,7 @@ export function syncPerDiemItems(
     hasInvoice: false,
     invoiceNumber: null,
     receiptImageDataUrl: null,
+    consumptionTaxRate: "0",
   };
 
   return { items: [line, ...without], perDiemLineItemId: id };

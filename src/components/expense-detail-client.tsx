@@ -55,6 +55,14 @@ import { Separator } from "@/components/ui/separator";
 import { BizGoMark } from "@/components/bizgo-mark";
 import { useExpenses } from "@/contexts/expenses-context";
 import { EXPENSE_CATEGORIES } from "@/lib/demo-expenses";
+import {
+  CONSUMPTION_TAX_OPTIONS,
+  type ConsumptionTaxRateKey,
+  consumptionTaxRateLabel,
+  isConsumptionTaxRateKey,
+  splitTaxIncludedYen,
+  toConsumptionTaxRateKey,
+} from "@/lib/consumption-tax";
 import type { ExpenseTypeLabel } from "@/lib/expenses-storage";
 import { cn } from "@/lib/utils";
 
@@ -63,6 +71,38 @@ const yen = new Intl.NumberFormat("ja-JP", {
   currency: "JPY",
   maximumFractionDigits: 0,
 });
+
+function TaxInclusiveBreakdown({
+  amountInput,
+  rate,
+}: {
+  amountInput: string;
+  rate: ConsumptionTaxRateKey;
+}) {
+  const n = Number.parseInt(amountInput.replace(/[^\d]/g, ""), 10);
+  if (!Number.isFinite(n) || n <= 0) return null;
+  if (rate === "0") return null;
+  const { exclusiveYen, taxYen } = splitTaxIncludedYen(n, rate);
+  return (
+    <div className="space-y-1 rounded-lg border border-border/50 bg-muted/25 px-3 py-2 text-sm">
+      <p className="tabular-nums">
+        <span className="text-muted-foreground">消費税別金額</span>{" "}
+        <span className="font-mono font-medium text-foreground">
+          {yen.format(exclusiveYen)}
+        </span>
+      </p>
+      <p className="tabular-nums">
+        <span className="text-muted-foreground">消費税額</span>{" "}
+        <span className="font-mono font-medium text-foreground">
+          {yen.format(taxYen)}
+        </span>
+      </p>
+      <p className="text-xs text-muted-foreground">
+        入力した金額は税込。税抜・税額は端数切り捨てで算出しています。
+      </p>
+    </div>
+  );
+}
 
 type Props = {
   expenseId: string;
@@ -90,6 +130,8 @@ export function ExpenseDetailClient({ expenseId }: Props) {
     () => new Date().toISOString().slice(0, 10),
   );
   const [amount, setAmount] = React.useState("");
+  const [consumptionTaxRate, setConsumptionTaxRate] =
+    React.useState<ConsumptionTaxRateKey>("0");
   const [description, setDescription] = React.useState("");
   const [hasReceipt, setHasReceipt] = React.useState(true);
   const [hasInvoice, setHasInvoice] = React.useState(false);
@@ -179,6 +221,11 @@ export function ExpenseDetailClient({ expenseId }: Props) {
     setHasInvoice(src.hasInvoice);
     setInvoiceNumber(src.invoiceNumber ?? "");
     setReceiptImageDataUrl(src.receiptImageDataUrl ?? null);
+    setConsumptionTaxRate(
+      isConsumptionTaxRateKey(src.consumptionTaxRate)
+        ? src.consumptionTaxRate
+        : "0",
+    );
     setAddLineError(null);
     setCopyDialogOpen(false);
     if (src.hasReceipt && !src.receiptImageDataUrl) {
@@ -222,9 +269,11 @@ export function ExpenseDetailClient({ expenseId }: Props) {
       hasInvoice,
       invoiceNumber: hasInvoice ? parseQualifiedInvoiceNumber(invoiceNumber) : null,
       receiptImageDataUrl: hasReceipt ? receiptImageDataUrl : null,
+      consumptionTaxRate,
     };
     addItem(expense.id, row);
     setAmount("");
+    setConsumptionTaxRate("0");
     setDescription("");
     setHasReceipt(true);
     setHasInvoice(false);
@@ -260,6 +309,7 @@ export function ExpenseDetailClient({ expenseId }: Props) {
       date: lineForm.date,
       category: lineForm.category,
       amount: lineForm.amount,
+      consumptionTaxRate: lineForm.consumptionTaxRate,
       description: lineForm.description,
       hasReceipt: lineForm.hasReceipt,
       hasInvoice: lineForm.hasInvoice,
@@ -559,7 +609,7 @@ export function ExpenseDetailClient({ expenseId }: Props) {
               </Select>
             </div>
             <div className="grid gap-2">
-              <Label htmlFor="line-amount">金額（円・整数）</Label>
+              <Label htmlFor="line-amount">金額（円・税込・整数）</Label>
               <Input
                 id="line-amount"
                 inputMode="numeric"
@@ -568,6 +618,30 @@ export function ExpenseDetailClient({ expenseId }: Props) {
                 value={amount}
                 onChange={(ev) => setAmount(ev.target.value)}
                 className="bg-background/80 font-mono tabular-nums"
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label>消費税区分</Label>
+              <Select
+                value={consumptionTaxRate}
+                onValueChange={(v) => {
+                  if (isConsumptionTaxRateKey(v)) setConsumptionTaxRate(v);
+                }}
+              >
+                <SelectTrigger className="w-full bg-background/80">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CONSUMPTION_TAX_OPTIONS.map((o) => (
+                    <SelectItem key={o.value} value={o.value}>
+                      {o.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <TaxInclusiveBreakdown
+                amountInput={amount}
+                rate={consumptionTaxRate}
               />
             </div>
             <div className="grid gap-2">
@@ -705,6 +779,28 @@ export function ExpenseDetailClient({ expenseId }: Props) {
                               {item.description}
                             </p>
                           ) : null}
+                        {toConsumptionTaxRateKey(item.consumptionTaxRate) !==
+                        "0" ? (
+                          <p className="text-xs tabular-nums text-muted-foreground">
+                            {consumptionTaxRateLabel(
+                              toConsumptionTaxRateKey(item.consumptionTaxRate),
+                            )}{" "}
+                            ·消費税別{" "}
+                            {yen.format(
+                              splitTaxIncludedYen(
+                                item.amount,
+                                toConsumptionTaxRateKey(item.consumptionTaxRate),
+                              ).exclusiveYen,
+                            )}{" "}
+                            ·消費税{" "}
+                            {yen.format(
+                              splitTaxIncludedYen(
+                                item.amount,
+                                toConsumptionTaxRateKey(item.consumptionTaxRate),
+                              ).taxYen,
+                            )}
+                          </p>
+                        ) : null}
                         </div>
                         <div className="flex shrink-0 items-start gap-1">
                           <div className="text-right">
@@ -761,7 +857,7 @@ export function ExpenseDetailClient({ expenseId }: Props) {
             <DialogTitle>過去の明細からコピー</DialogTitle>
           </DialogHeader>
           <p className="text-sm text-muted-foreground">
-            日付・区分・金額・摘要・領収書／インボイス情報をフォームに流し込みます。領収書のみ未登録のときはカメラを開きます。
+            日付・区分・金額（税込）・消費税区分・摘要・領収書／インボイス情報をフォームに流し込みます。領収書のみ未登録のときはカメラを開きます。
           </p>
           <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border/50 p-2">
             {copyCandidates.length === 0 ? (
@@ -956,7 +1052,7 @@ export function ExpenseDetailClient({ expenseId }: Props) {
                   </Select>
                 </div>
                 <div className="grid gap-2">
-                  <Label htmlFor="el-amt">金額（円）</Label>
+                  <Label htmlFor="el-amt">金額（円・税込）</Label>
                   <Input
                     id="el-amt"
                     inputMode="numeric"
@@ -972,6 +1068,31 @@ export function ExpenseDetailClient({ expenseId }: Props) {
                       });
                     }}
                     className="font-mono"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label>消費税区分</Label>
+                  <Select
+                    value={lineForm.consumptionTaxRate}
+                    onValueChange={(v) => {
+                      if (isConsumptionTaxRateKey(v))
+                        setLineForm({ ...lineForm, consumptionTaxRate: v });
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CONSUMPTION_TAX_OPTIONS.map((o) => (
+                        <SelectItem key={o.value} value={o.value}>
+                          {o.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <TaxInclusiveBreakdown
+                    amountInput={String(lineForm.amount)}
+                    rate={toConsumptionTaxRateKey(lineForm.consumptionTaxRate)}
                   />
                 </div>
                 <div className="grid gap-2">

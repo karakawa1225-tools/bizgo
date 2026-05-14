@@ -72,6 +72,7 @@ export function seedFromDemo(): ExpenseRecord[] {
             hasInvoice: false,
             invoiceNumber: null,
             receiptImageDataUrl: null,
+            consumptionTaxRate: "0",
           },
           ...base.items,
         ];

@@ -1,6 +1,11 @@
 import type { ExpenseRecord } from "@/lib/expense-types";
 import { downloadCsv } from "@/lib/export-csv";
 import { totalYen } from "@/lib/expenses-storage";
+import {
+  consumptionTaxRateLabel,
+  splitTaxIncludedYen,
+  toConsumptionTaxRateKey,
+} from "@/lib/consumption-tax";
 
 /** `YYYY-MM` を CSV・帳票用の「2026年3月」表記に（Excel の日付誤認識を避ける） */
 export function formatSettlementMonthJa(ym: string): string {
@@ -23,7 +28,10 @@ export function buildMonthlyGeneralRows(
     "件名",
     "明細日付",
     "区分",
-    "金額",
+    "金額（税込）",
+    "消費税区分",
+    "消費税別金額",
+    "消費税額",
     "摘要",
     "領収書",
     "インボイス",
@@ -35,12 +43,17 @@ export function buildMonthlyGeneralRows(
   );
   for (const e of list) {
     for (const it of e.items) {
+      const rate = toConsumptionTaxRateKey(it.consumptionTaxRate);
+      const split = splitTaxIncludedYen(it.amount, rate);
       rows.push([
         monthLabel,
         e.title,
         it.date,
         it.category,
         it.amount,
+        consumptionTaxRateLabel(rate),
+        split.exclusiveYen,
+        split.taxYen,
         it.description,
         it.hasReceipt ? "あり" : "なし",
         it.hasInvoice ? "あり" : "なし",

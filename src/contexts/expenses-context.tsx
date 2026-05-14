@@ -66,6 +66,7 @@ type Ctx = {
         | "hasInvoice"
         | "invoiceNumber"
         | "receiptImageDataUrl"
+        | "consumptionTaxRate"
       >
     >,
   ) => void;
@@ -215,6 +216,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
           | "hasInvoice"
           | "invoiceNumber"
           | "receiptImageDataUrl"
+          | "consumptionTaxRate"
         >
       >,
     ) => {

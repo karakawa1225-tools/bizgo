@@ -1,4 +1,8 @@
 import type { ExpenseItem } from "@/db/schema";
+import {
+  type ConsumptionTaxRateKey,
+  isConsumptionTaxRateKey,
+} from "@/lib/consumption-tax";
 
 /** 適格請求書登録番号: T の直後に数字13桁（ハイフンは入力時のみ許容） */
 export const QUALIFIED_INVOICE_PATTERN = /^T-?(\d{13})$/i;
@@ -41,6 +45,13 @@ export function normalizeExpenseItem(raw: unknown): ExpenseItem {
     receiptImageDataUrl = null;
   }
 
+  const rateRaw = o.consumptionTaxRate ?? o.consumption_tax_rate;
+  const consumptionTaxRate: ConsumptionTaxRateKey = isConsumptionTaxRateKey(
+    rateRaw,
+  )
+    ? rateRaw
+    : "0";
+
   return {
     id,
     expenseId,
@@ -52,5 +63,6 @@ export function normalizeExpenseItem(raw: unknown): ExpenseItem {
     hasInvoice,
     invoiceNumber: hasInvoice ? invoiceNumber : null,
     receiptImageDataUrl,
+    consumptionTaxRate,
   };
 }
