@@ -51,6 +51,7 @@ import { useExpenses } from "@/contexts/expenses-context";
 import type { ExpenseTypeLabel } from "@/lib/expenses-storage";
 import { totalYen } from "@/lib/expenses-storage";
 import { BizGoMark } from "@/components/bizgo-mark";
+import { CloudSyncCard } from "@/components/cloud-sync-card";
 import { cn } from "@/lib/utils";
 
 const yen = new Intl.NumberFormat("ja-JP", {
@@ -60,7 +61,8 @@ const yen = new Intl.NumberFormat("ja-JP", {
 });
 
 export function TopPageClient() {
-  const { expenses, hydrated, patchExpense, deleteExpense } = useExpenses();
+  const { expenses, hydrated, patchExpense, deleteExpense, cloud } =
+    useExpenses();
   const [editOpen, setEditOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [activeId, setActiveId] = React.useState<string | null>(null);
@@ -166,6 +168,10 @@ export function TopPageClient() {
       </header>
 
       <main className="mx-auto flex w-full max-w-lg flex-1 flex-col gap-6 px-4 py-6 pb-28">
+        <CloudSyncCard cloud={cloud} />
+
+        <Separator className="bg-border/60" />
+
         <section aria-labelledby="create-heading" className="space-y-4">
           <h2
             id="create-heading"

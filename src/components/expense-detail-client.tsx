@@ -118,6 +118,7 @@ export function ExpenseDetailClient({ expenseId }: Props) {
     removeItem,
     patchExpense,
     deleteExpense,
+    cloud,
   } = useExpenses();
 
   const expense = getExpense(expenseId);
@@ -829,8 +830,10 @@ export function ExpenseDetailClient({ expenseId }: Props) {
 
         <Separator className="bg-border/60" />
         <p className="text-center text-xs leading-relaxed text-muted-foreground sm:text-sm">
-          データはこの端末のブラウザに保存されます（localStorage）。Turso
-          接続後はクラウドへ同期できます。
+          まずこのブラウザの localStorage に保存されます。TOP の「Turso
+          で共有」をオンにすると、同じ Web アプリ経由で Turso
+          の共有データベースにも反映されます
+          {cloud.enabled && cloud.authReady === true ? "（現在オン）" : ""}。
         </p>
       </main>
 

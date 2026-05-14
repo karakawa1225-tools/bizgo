@@ -137,6 +137,11 @@ function parseList(raw: string): ExpenseRecord[] | null {
   }
 }
 
+/** Turso 同期・API 用：JSON 文字列を現在の `ExpenseRecord` 形へ復元 */
+export function parseExpensesJson(raw: string): ExpenseRecord[] | null {
+  return parseList(raw);
+}
+
 export function loadExpenses(): ExpenseRecord[] {
   if (typeof window === "undefined") return seedFromDemo();
 

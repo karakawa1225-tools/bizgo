@@ -71,6 +71,13 @@ export const expenseItemsRelations = relations(expenseItems, ({ one }) => ({
   }),
 }));
 
+/** 端末間共有用：経費配列を JSON でまとめたスナップショット（単一テナントは slot=default） */
+export const remoteExpenseSnapshot = sqliteTable("remote_expense_snapshot", {
+  slot: text("slot").primaryKey().notNull(),
+  payloadJson: text("payload_json").notNull(),
+  updatedAtMs: integer("updated_at_ms", { mode: "number" }).notNull(),
+});
+
 export type Expense = typeof expenses.$inferSelect;
 export type NewExpense = typeof expenses.$inferInsert;
 export type ExpenseItem = typeof expenseItems.$inferSelect;
