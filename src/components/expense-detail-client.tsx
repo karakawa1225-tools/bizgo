@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Camera, Copy, FileText, ImageIcon, Pencil, Trash2 } from "lucide-react";
+import { ArrowLeft, Camera, Copy, FileText, ImageIcon, Pencil, Table2, Trash2 } from "lucide-react";
 
 import {
   TravelDefinitionSurface,
@@ -30,7 +30,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Card,
-  CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
@@ -58,12 +57,12 @@ import { EXPENSE_CATEGORIES } from "@/lib/demo-expenses";
 import {
   CONSUMPTION_TAX_OPTIONS,
   type ConsumptionTaxRateKey,
-  consumptionTaxRateLabel,
   isConsumptionTaxRateKey,
   splitTaxIncludedYen,
   toConsumptionTaxRateKey,
 } from "@/lib/consumption-tax";
 import type { ExpenseTypeLabel } from "@/lib/expenses-storage";
+import { formatLineDateYmd } from "@/lib/format-line-date";
 import { cn } from "@/lib/utils";
 
 const yen = new Intl.NumberFormat("ja-JP", {
@@ -744,105 +743,89 @@ export function ExpenseDetailClient({ expenseId }: Props) {
           </form>
         </section>
 
-        <div>
-          <h2 className="mb-3 text-lg font-semibold tracking-tight text-foreground">
-            登録済みの明細
-          </h2>
+        <section aria-labelledby="registered-lines-heading">
+          <div className="mb-2 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
+              <h2
+                id="registered-lines-heading"
+                className="text-lg font-semibold tracking-tight text-foreground"
+              >
+                登録済みの明細
+              </h2>
+              <p className="mt-0.5 text-xs leading-relaxed text-muted-foreground">
+                日付・摘要・金額のみ表示しています。区分・消費税・領収書などの詳細は
+                「登録済み明細一覧表」でご確認ください。
+              </p>
+            </div>
+            <Link
+              href={`/expenses/${expense.id}/items`}
+              className={cn(
+                buttonVariants({ variant: "secondary", size: "sm" }),
+                "inline-flex h-10 w-full shrink-0 items-center justify-center gap-1.5 no-underline sm:h-9 sm:w-auto",
+              )}
+            >
+              <Table2 className="size-3.5 shrink-0" aria-hidden />
+              登録済み明細一覧表
+            </Link>
+          </div>
           {expense.items.length === 0 ? (
             <p className="text-sm text-muted-foreground">
               まだ明細がありません。上のフォームから追加してください。
             </p>
           ) : (
-            <ul className="flex flex-col gap-2">
+            <ul className="flex max-h-[min(70vh,28rem)] flex-col gap-1.5 overflow-y-auto pr-0.5">
               {expense.items.map((item) => (
                 <li key={item.id}>
-                  <Card size="sm" className="border-border/50">
-                    <CardContent className="px-4 py-3">
-                      <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0 flex-1">
-                          <p className="text-xs text-muted-foreground">
-                            {item.date}
-                          </p>
-                        <p className="flex flex-wrap items-center gap-1 font-medium">
-                          {item.category}
-                          {item.id === expense.perDiemLineItemId ? (
-                            <Badge
-                              variant="outline"
-                              className="rounded-sm text-[0.6rem] font-normal"
-                            >
-                              自動日当
-                            </Badge>
-                          ) : null}
-                        </p>
-                        {item.description ? (
-                            <p className="truncate text-sm text-muted-foreground">
-                              {item.description}
-                            </p>
-                          ) : null}
-                        {toConsumptionTaxRateKey(item.consumptionTaxRate) !==
-                        "0" ? (
-                          <p className="text-xs tabular-nums text-muted-foreground">
-                            {consumptionTaxRateLabel(
-                              toConsumptionTaxRateKey(item.consumptionTaxRate),
-                            )}{" "}
-                            ·消費税別{" "}
-                            {yen.format(
-                              splitTaxIncludedYen(
-                                item.amount,
-                                toConsumptionTaxRateKey(item.consumptionTaxRate),
-                              ).exclusiveYen,
-                            )}{" "}
-                            ·消費税{" "}
-                            {yen.format(
-                              splitTaxIncludedYen(
-                                item.amount,
-                                toConsumptionTaxRateKey(item.consumptionTaxRate),
-                              ).taxYen,
-                            )}
-                          </p>
-                        ) : null}
-                        </div>
-                        <div className="flex shrink-0 items-start gap-1">
-                          <div className="text-right">
-                            <p className="font-mono text-base font-semibold tabular-nums text-foreground">
-                              {yen.format(item.amount)}
-                            </p>
-                            <p className="text-[0.65rem] text-muted-foreground">
-                              {item.hasReceipt ? "領収書あり" : "領収書なし"}
-                              {item.hasInvoice
-                                ? ` · インボイス ${item.invoiceNumber ?? ""}`
-                                : ""}
-                              {item.receiptImageDataUrl ? " · 写真あり" : ""}
-                            </p>
-                          </div>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label="明細を編集"
-                            onClick={() => openEditLine(item)}
-                          >
-                            <Pencil className="size-3.5" />
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon-sm"
-                            className="text-destructive"
-                            aria-label="明細を削除"
-                            onClick={() => openDeleteLine(item.id)}
-                          >
-                            <Trash2 className="size-3.5" />
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                  <div className="flex items-center gap-2 rounded-lg border border-border/50 bg-card/70 px-2.5 py-2 sm:gap-3 sm:px-3">
+                    <time
+                      dateTime={item.date}
+                      className="w-[4.5rem] shrink-0 text-left text-[0.8125rem] tabular-nums leading-none text-muted-foreground sm:w-[5.25rem] sm:text-sm"
+                    >
+                      {formatLineDateYmd(item.date)}
+                    </time>
+                    <p
+                      className="min-w-0 flex-1 truncate text-sm leading-tight text-foreground"
+                      title={
+                        item.description?.trim()
+                          ? item.description
+                          : "（摘要なし）"
+                      }
+                    >
+                      {item.description?.trim()
+                        ? item.description
+                        : "（摘要なし）"}
+                    </p>
+                    <span className="shrink-0 font-mono text-sm font-semibold tabular-nums leading-none text-foreground sm:text-base">
+                      {yen.format(item.amount)}
+                    </span>
+                    <div className="flex shrink-0 items-center gap-0.5">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-8 sm:size-9"
+                        aria-label="明細を編集"
+                        onClick={() => openEditLine(item)}
+                      >
+                        <Pencil className="size-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="size-8 text-destructive sm:size-9"
+                        aria-label="明細を削除"
+                        onClick={() => openDeleteLine(item.id)}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
-        </div>
+        </section>
 
         <Separator className="bg-border/60" />
         <p className="text-center text-xs leading-relaxed text-muted-foreground sm:text-sm">
