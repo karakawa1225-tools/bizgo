@@ -10,6 +10,10 @@ import {
   exportMonthlyGeneralCsv,
   monthlyGeneralTotals,
 } from "@/lib/export-monthly-general";
+import {
+  exportMonthlyTravelCsv,
+  monthlyTravelTotals,
+} from "@/lib/export-monthly-travel";
 
 import {
   AlertDialog,
@@ -134,7 +138,8 @@ export function TopPageClient() {
     await downloadElementAsPdf(el, `経費精算_${exportYm}.pdf`);
   }
 
-  const monthlyStats = monthlyGeneralTotals(expenses, exportYm);
+  const monthlyGeneralStats = monthlyGeneralTotals(expenses, exportYm);
+  const monthlyTravelStats = monthlyTravelTotals(expenses, exportYm);
 
   function confirmDelete() {
     if (!activeId) return;
@@ -208,7 +213,7 @@ export function TopPageClient() {
             id="export-heading"
             className="text-lg font-semibold tracking-tight text-foreground sm:text-xl"
           >
-            経費精算書の月次出力（一般のみ）
+            月次出力（一般・出張）
           </h2>
           <div className="flex flex-col gap-3 rounded-xl border border-border/60 bg-card/50 p-5 backdrop-blur-sm">
             <Label htmlFor="export-month" className="text-sm text-muted-foreground">
@@ -221,10 +226,18 @@ export function TopPageClient() {
               onChange={(ev) => setExportYm(ev.target.value)}
               className="w-full bg-card/60 text-base sm:max-w-xs"
             />
-            <p className="text-sm text-muted-foreground sm:text-base">
-              {exportYm}：申請 {monthlyStats.count} 件・合計{" "}
-              {yen.format(monthlyStats.sum)}
-            </p>
+            <div className="space-y-3 text-sm text-muted-foreground sm:text-base">
+              <p>
+                一般経費（精算月 {exportYm}）：申請{" "}
+                {monthlyGeneralStats.count} 件・明細合計{" "}
+                {yen.format(monthlyGeneralStats.sum)}
+              </p>
+              <p>
+                出張経費（期間が {exportYm} と重なる申請）：申請{" "}
+                {monthlyTravelStats.count} 件・明細合計{" "}
+                {yen.format(monthlyTravelStats.sum)}
+              </p>
+            </div>
             <div className="flex flex-wrap gap-2">
               <Button
                 type="button"
@@ -234,7 +247,17 @@ export function TopPageClient() {
                 onClick={() => exportMonthlyGeneralCsv(expenses, exportYm)}
               >
                 <FileText className="size-3.5" />
-                CSV
+                一般 CSV
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                className="gap-1.5"
+                onClick={() => exportMonthlyTravelCsv(expenses, exportYm)}
+              >
+                <FileText className="size-3.5" />
+                出張 CSV
               </Button>
               <Button
                 type="button"
@@ -244,7 +267,7 @@ export function TopPageClient() {
                 onClick={() => void handleMonthlyPdf()}
               >
                 <FileText className="size-3.5" />
-                PDF
+                一般 PDF
               </Button>
             </div>
           </div>
