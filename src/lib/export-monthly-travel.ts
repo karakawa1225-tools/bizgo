@@ -27,7 +27,33 @@ export function filterTravelExpensesForMonth(
   );
 }
 
-/** 指定月に重なる出張の明細行（CSV） */
+const EMPTY_TRAVEL_META: (string | number)[] = ["", "", "", "", "", ""];
+
+function isPerDiemLineItem(e: ExpenseRecord, it: { id: string; description: string }) {
+  if (e.perDiemLineItemId && it.id === e.perDiemLineItemId) return true;
+  return it.description.startsWith("日当（");
+}
+
+function buildTravelMetaCells(e: ExpenseRecord): (string | number)[] {
+  const travelDays = countTravelDaysInclusive(e.startDate, e.endDate);
+  const derived = deriveTravelAmounts(
+    e.startDate,
+    e.endDate,
+    e.distanceKmOneWay,
+    e.hasOvernight,
+    e.executivePerDiem,
+  );
+  return [
+    e.startDate,
+    e.endDate,
+    travelDays,
+    e.distanceKmOneWay ?? 0,
+    e.hasOvernight ? "あり" : "なし",
+    derived.perDiemTotalYen,
+  ];
+}
+
+/** 指定月に重なる出張の明細行（CSV）。出張条件・日当は日当行のみに出力。 */
 export function buildMonthlyTravelRows(
   expenses: ExpenseRecord[],
   ym: string,
@@ -57,61 +83,16 @@ export function buildMonthlyTravelRows(
   const list = filterTravelExpensesForMonth(expenses, ym);
 
   for (const e of list) {
-    const travelDays = countTravelDaysInclusive(e.startDate, e.endDate);
-    const derived = deriveTravelAmounts(
-      e.startDate,
-      e.endDate,
-      e.distanceKmOneWay,
-      e.hasOvernight,
-      e.executivePerDiem,
-    );
-    const tripMeta = {
-      monthLabel,
-      title: e.title,
-      start: e.startDate,
-      end: e.endDate,
-      days: travelDays,
-      km: e.distanceKmOneWay ?? 0,
-      overnight: e.hasOvernight ? "あり" : "なし",
-      perDiemTotal: derived.perDiemTotalYen,
-    };
-
-    if (e.items.length === 0) {
-      rows.push([
-        tripMeta.monthLabel,
-        tripMeta.title,
-        tripMeta.start,
-        tripMeta.end,
-        tripMeta.days,
-        tripMeta.km,
-        tripMeta.overnight,
-        tripMeta.perDiemTotal,
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-      ]);
-      continue;
-    }
-
     for (const it of e.items) {
       const rate = toConsumptionTaxRateKey(it.consumptionTaxRate);
       const split = splitTaxIncludedYen(it.amount, rate);
+      const travelMeta = isPerDiemLineItem(e, it)
+        ? buildTravelMetaCells(e)
+        : EMPTY_TRAVEL_META;
       rows.push([
-        tripMeta.monthLabel,
-        tripMeta.title,
-        tripMeta.start,
-        tripMeta.end,
-        tripMeta.days,
-        tripMeta.km,
-        tripMeta.overnight,
-        tripMeta.perDiemTotal,
+        monthLabel,
+        e.title,
+        ...travelMeta,
         it.date,
         it.category,
         it.amount,
