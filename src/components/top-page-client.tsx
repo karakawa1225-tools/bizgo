@@ -56,6 +56,12 @@ import type { ExpenseTypeLabel } from "@/lib/expenses-storage";
 import { totalYen } from "@/lib/expenses-storage";
 import { BizGoMark } from "@/components/bizgo-mark";
 import { CloudSyncCard } from "@/components/cloud-sync-card";
+import {
+  SCROLL_DIALOG_BODY,
+  SCROLL_DIALOG_CONTENT,
+  SCROLL_DIALOG_FOOTER,
+  SCROLL_DIALOG_HEADER,
+} from "@/lib/dialog-scroll-classes";
 import { cn } from "@/lib/utils";
 
 const yen = new Intl.NumberFormat("ja-JP", {
@@ -372,11 +378,11 @@ export function TopPageClient() {
       </main>
 
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className={cn("sm:max-w-md", SCROLL_DIALOG_CONTENT)}>
+          <DialogHeader className={SCROLL_DIALOG_HEADER}>
             <DialogTitle>精算書を編集</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-3 py-2">
+          <div className={cn("grid gap-3", SCROLL_DIALOG_BODY)}>
             <div className="grid gap-2">
               <Label htmlFor="top-edit-title">件名</Label>
               <Input
@@ -455,7 +461,7 @@ export function TopPageClient() {
               </>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className={SCROLL_DIALOG_FOOTER}>
             <Button variant="outline" onClick={() => setEditOpen(false)}>
               キャンセル
             </Button>

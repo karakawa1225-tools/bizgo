@@ -4,7 +4,17 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Camera, Copy, FileText, ImageIcon, Pencil, Table2, Trash2 } from "lucide-react";
+import {
+  ArrowLeft,
+  Camera,
+  Copy,
+  FileText,
+  FileUp,
+  ImageIcon,
+  Pencil,
+  Table2,
+  Trash2,
+} from "lucide-react";
 
 import {
   TravelDefinitionSurface,
@@ -52,12 +62,22 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { BizGoMark } from "@/components/bizgo-mark";
+import { ReceiptAttachmentPreview } from "@/components/receipt-attachment-preview";
 import { useExpenses } from "@/contexts/expenses-context";
+import {
+  SCROLL_DIALOG_BODY,
+  SCROLL_DIALOG_CONTENT,
+  SCROLL_DIALOG_FOOTER,
+  SCROLL_DIALOG_HEADER,
+} from "@/lib/dialog-scroll-classes";
 import { EXPENSE_CATEGORIES } from "@/lib/demo-expenses";
 import {
-  compressReceiptImageToDataUrl,
-  RECEIPT_IMAGE_MAX_EDGE_PX,
-} from "@/lib/receipt-image-compress";
+  isReceiptPdfDataUrl,
+  processReceiptAttachmentFile,
+  RECEIPT_CAMERA_ACCEPT,
+  RECEIPT_FILE_ACCEPT,
+} from "@/lib/receipt-file-import";
+import { RECEIPT_IMAGE_MAX_EDGE_PX } from "@/lib/receipt-image-compress";
 import {
   CONSUMPTION_TAX_OPTIONS,
   type ConsumptionTaxRateKey,
@@ -146,7 +166,9 @@ export function ExpenseDetailClient({ expenseId }: Props) {
   const [addLineError, setAddLineError] = React.useState<string | null>(null);
   const [copyDialogOpen, setCopyDialogOpen] = React.useState(false);
   const receiptCaptureRef = React.useRef<HTMLInputElement>(null);
+  const receiptPickRef = React.useRef<HTMLInputElement>(null);
   const receiptEditCaptureRef = React.useRef<HTMLInputElement>(null);
+  const receiptEditPickRef = React.useRef<HTMLInputElement>(null);
 
   const [editParentOpen, setEditParentOpen] = React.useState(false);
   const [deleteParentOpen, setDeleteParentOpen] = React.useState(false);
@@ -204,26 +226,36 @@ export function ExpenseDetailClient({ expenseId }: Props) {
     return rows;
   }, [expenses, expense]);
 
+  function preferReceiptCameraOnDevice() {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(pointer: coarse)").matches;
+  }
+
+  function openReceiptPicker(
+    mode: "camera" | "pick",
+    target: "add" | "edit",
+  ) {
+    if (target === "add") {
+      if (mode === "camera") receiptCaptureRef.current?.click();
+      else receiptPickRef.current?.click();
+    } else if (mode === "camera") receiptEditCaptureRef.current?.click();
+    else receiptEditPickRef.current?.click();
+  }
+
   async function handleReceiptFile(
     ev: React.ChangeEvent<HTMLInputElement>,
     onData: (url: string | null) => void,
+    onError?: (message: string) => void,
   ) {
     const file = ev.target.files?.[0];
     ev.target.value = "";
     if (!file) return;
-    const compressed = await compressReceiptImageToDataUrl(file);
-    if (compressed) {
-      onData(compressed);
+    const result = await processReceiptAttachmentFile(file);
+    if (result.error) {
+      onError?.(result.error);
       return;
     }
-    if (!file.type.startsWith("image/")) {
-      onData(null);
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => onData(String(reader.result));
-    reader.onerror = () => onData(null);
-    reader.readAsDataURL(file);
+    onData(result.dataUrl);
   }
 
   function applyCopiedLine(src: ExpenseItem) {
@@ -243,7 +275,14 @@ export function ExpenseDetailClient({ expenseId }: Props) {
     setAddLineError(null);
     setCopyDialogOpen(false);
     if (src.hasReceipt && !src.receiptImageDataUrl) {
-      setTimeout(() => receiptCaptureRef.current?.click(), 120);
+      setTimeout(
+        () =>
+          openReceiptPicker(
+            preferReceiptCameraOnDevice() ? "camera" : "pick",
+            "add",
+          ),
+        120,
+      );
     }
   }
 
@@ -257,7 +296,7 @@ export function ExpenseDetailClient({ expenseId }: Props) {
     }
     if (hasReceipt && !receiptImageDataUrl) {
       setAddLineError(
-        "領収書ありの場合は「領収書を撮影」でカメラから写真を登録してください。",
+        "領収書ありの場合は撮影するか、写真・PDFを選んで登録してください。",
       );
       return;
     }
@@ -305,7 +344,7 @@ export function ExpenseDetailClient({ expenseId }: Props) {
     if (!expense || !lineForm) return;
     if (lineForm.hasReceipt && !lineForm.receiptImageDataUrl) {
       setEditLineError(
-        "領収書ありの場合は「領収書を撮影」でカメラから写真を登録してください。",
+        "領収書ありの場合は撮影するか、写真・PDFを選んで登録してください。",
       );
       return;
     }
@@ -583,13 +622,24 @@ export function ExpenseDetailClient({ expenseId }: Props) {
             <input
               ref={receiptCaptureRef}
               type="file"
-              accept="image/*"
+              accept={RECEIPT_CAMERA_ACCEPT}
               capture="environment"
               className="sr-only"
               aria-hidden
               tabIndex={-1}
               onChange={(ev) =>
-                handleReceiptFile(ev, setReceiptImageDataUrl)
+                handleReceiptFile(ev, setReceiptImageDataUrl, setAddLineError)
+              }
+            />
+            <input
+              ref={receiptPickRef}
+              type="file"
+              accept={RECEIPT_FILE_ACCEPT}
+              className="sr-only"
+              aria-hidden
+              tabIndex={-1}
+              onChange={(ev) =>
+                handleReceiptFile(ev, setReceiptImageDataUrl, setAddLineError)
               }
             />
             <div className="grid gap-2">
@@ -678,14 +728,18 @@ export function ExpenseDetailClient({ expenseId }: Props) {
                     setReceiptImageDataUrl(null);
                   } else {
                     setTimeout(
-                      () => receiptCaptureRef.current?.click(),
+                      () =>
+                        openReceiptPicker(
+                          preferReceiptCameraOnDevice() ? "camera" : "pick",
+                          "add",
+                        ),
                       80,
                     );
                   }
                 }}
               />
-              領収書あり（オンにするとカメラが開きます。写真は長辺最大
-              {RECEIPT_IMAGE_MAX_EDGE_PX}px の JPEG に圧縮して保存します。未対応の場合は下のボタンから撮影）
+              領収書あり（スマホはカメラ、PCは写真・PDFを選べます。画像は長辺最大
+              {RECEIPT_IMAGE_MAX_EDGE_PX}px の JPEG に圧縮）
             </label>
             {hasReceipt ? (
               <div className="flex flex-wrap items-center gap-2">
@@ -694,31 +748,39 @@ export function ExpenseDetailClient({ expenseId }: Props) {
                   variant="secondary"
                   size="sm"
                   className="gap-1.5"
-                  onClick={() => receiptCaptureRef.current?.click()}
+                  onClick={() => openReceiptPicker("camera", "add")}
                 >
                   <Camera className="size-4" />
-                  領収書を撮影
+                  撮影
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  className="gap-1.5"
+                  onClick={() => openReceiptPicker("pick", "add")}
+                >
+                  <FileUp className="size-4" />
+                  写真・PDF
                 </Button>
                 {receiptImageDataUrl ? (
                   <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-                    <ImageIcon className="size-3.5" />
-                    写真を登録済み
+                    {isReceiptPdfDataUrl(receiptImageDataUrl) ? (
+                      <FileText className="size-3.5" />
+                    ) : (
+                      <ImageIcon className="size-3.5" />
+                    )}
+                    登録済み
                   </span>
                 ) : (
                   <span className="text-xs text-amber-200/90">
-                    写真が未登録です
+                    未登録です
                   </span>
                 )}
               </div>
             ) : null}
             {hasReceipt && receiptImageDataUrl ? (
-              <div className="overflow-hidden rounded-lg border border-border/60">
-                <img
-                  src={receiptImageDataUrl}
-                  alt="領収書プレビュー"
-                  className="max-h-40 w-full object-contain bg-black/20"
-                />
-              </div>
+              <ReceiptAttachmentPreview dataUrl={receiptImageDataUrl} />
             ) : null}
             <label className="flex cursor-pointer items-center gap-2 text-sm">
               <Checkbox
@@ -891,11 +953,11 @@ export function ExpenseDetailClient({ expenseId }: Props) {
       </Dialog>
 
       <Dialog open={editParentOpen} onOpenChange={setEditParentOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className={cn("sm:max-w-md", SCROLL_DIALOG_CONTENT)}>
+          <DialogHeader className={SCROLL_DIALOG_HEADER}>
             <DialogTitle>精算書を編集</DialogTitle>
           </DialogHeader>
-          <div className="grid gap-3 py-2">
+          <div className={cn("grid gap-3", SCROLL_DIALOG_BODY)}>
             <div className="grid gap-2">
               <Label htmlFor="det-title">件名</Label>
               <Input
@@ -974,7 +1036,7 @@ export function ExpenseDetailClient({ expenseId }: Props) {
               </>
             )}
           </div>
-          <DialogFooter>
+          <DialogFooter className={SCROLL_DIALOG_FOOTER}>
             <Button
               variant="outline"
               onClick={() => setEditParentOpen(false)}
@@ -1013,13 +1075,13 @@ export function ExpenseDetailClient({ expenseId }: Props) {
           if (!open) setEditLineError(null);
         }}
       >
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
+        <DialogContent className={cn("sm:max-w-md", SCROLL_DIALOG_CONTENT)}>
+          <DialogHeader className={SCROLL_DIALOG_HEADER}>
             <DialogTitle>明細を編集</DialogTitle>
           </DialogHeader>
           {lineForm ? (
             <>
-              <div className="grid gap-3 py-2">
+              <div className={cn("grid gap-3", SCROLL_DIALOG_BODY)}>
                 <div className="grid gap-2">
                   <Label htmlFor="el-date">日付</Label>
                   <Input
@@ -1123,28 +1185,53 @@ export function ExpenseDetailClient({ expenseId }: Props) {
                       });
                       if (next) {
                         setTimeout(
-                          () => receiptEditCaptureRef.current?.click(),
+                          () =>
+                            openReceiptPicker(
+                              preferReceiptCameraOnDevice() ? "camera" : "pick",
+                              "edit",
+                            ),
                           80,
                         );
                       }
                     }}
                   />
-                  領収書あり（オンでカメラ起動。写真は長辺最大
-                  {RECEIPT_IMAGE_MAX_EDGE_PX}px の JPEG に圧縮して保存）
+                  領収書あり（スマホはカメラ、PCは写真・PDF。画像は長辺最大
+                  {RECEIPT_IMAGE_MAX_EDGE_PX}px の JPEG に圧縮）
                 </label>
                 <input
                   ref={receiptEditCaptureRef}
                   type="file"
-                  accept="image/*"
+                  accept={RECEIPT_CAMERA_ACCEPT}
                   capture="environment"
                   className="sr-only"
                   aria-hidden
                   tabIndex={-1}
                   onChange={(ev) =>
-                    handleReceiptFile(ev, (url) =>
-                      setLineForm((prev) =>
-                        prev ? { ...prev, receiptImageDataUrl: url } : prev,
-                      ),
+                    handleReceiptFile(
+                      ev,
+                      (url) =>
+                        setLineForm((prev) =>
+                          prev ? { ...prev, receiptImageDataUrl: url } : prev,
+                        ),
+                      setEditLineError,
+                    )
+                  }
+                />
+                <input
+                  ref={receiptEditPickRef}
+                  type="file"
+                  accept={RECEIPT_FILE_ACCEPT}
+                  className="sr-only"
+                  aria-hidden
+                  tabIndex={-1}
+                  onChange={(ev) =>
+                    handleReceiptFile(
+                      ev,
+                      (url) =>
+                        setLineForm((prev) =>
+                          prev ? { ...prev, receiptImageDataUrl: url } : prev,
+                        ),
+                      setEditLineError,
                     )
                   }
                 />
@@ -1155,23 +1242,28 @@ export function ExpenseDetailClient({ expenseId }: Props) {
                       variant="secondary"
                       size="sm"
                       className="gap-1.5"
-                      onClick={() =>
-                        receiptEditCaptureRef.current?.click()
-                      }
+                      onClick={() => openReceiptPicker("camera", "edit")}
                     >
                       <Camera className="size-4" />
-                      領収書を撮影
+                      撮影
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      className="gap-1.5"
+                      onClick={() => openReceiptPicker("pick", "edit")}
+                    >
+                      <FileUp className="size-4" />
+                      写真・PDF
                     </Button>
                   </div>
                 ) : null}
                 {lineForm.hasReceipt && lineForm.receiptImageDataUrl ? (
-                  <div className="overflow-hidden rounded-lg border border-border/60">
-                    <img
-                      src={lineForm.receiptImageDataUrl}
-                      alt="領収書プレビュー"
-                      className="max-h-36 w-full object-contain bg-black/20"
-                    />
-                  </div>
+                  <ReceiptAttachmentPreview
+                    dataUrl={lineForm.receiptImageDataUrl}
+                    imgClassName="max-h-36"
+                  />
                 ) : null}
                 <label className="flex items-center gap-2 text-sm">
                   <Checkbox
@@ -1207,7 +1299,7 @@ export function ExpenseDetailClient({ expenseId }: Props) {
                   <p className="text-sm text-amber-200">{editLineError}</p>
                 ) : null}
               </div>
-              <DialogFooter>
+              <DialogFooter className={SCROLL_DIALOG_FOOTER}>
                 <Button
                   variant="outline"
                   onClick={() => {
