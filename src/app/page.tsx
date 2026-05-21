@@ -1,5 +1,5 @@
-import { TopPageClient } from "@/components/top-page-client";
+import { TopLandingClient } from "@/components/top-landing-client";
 
-export default function HomePage() {
-  return <TopPageClient />;
+export default function TopPage() {
+  return <TopLandingClient />;
 }

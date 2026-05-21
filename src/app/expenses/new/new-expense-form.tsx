@@ -92,7 +92,7 @@ export function NewExpenseForm() {
     return (
       <div className="mx-auto flex max-w-lg flex-col gap-4 px-4 py-12">
         <p className="text-base text-muted-foreground">不正なリンクです。</p>
-        <Link href="/" className={cn(buttonVariants({ variant: "outline" }))}>
+        <Link href="/create" className={cn(buttonVariants({ variant: "outline" }))}>
           TOPへ
         </Link>
       </div>
@@ -105,7 +105,7 @@ export function NewExpenseForm() {
         <div className="mx-auto flex max-w-lg flex-col gap-4 sm:flex-row sm:items-center sm:gap-6">
           <div className="flex items-center gap-2">
             <Link
-              href="/"
+              href="/create"
               className={cn(
                 buttonVariants({ variant: "ghost", size: "icon-sm" }),
                 "no-underline",

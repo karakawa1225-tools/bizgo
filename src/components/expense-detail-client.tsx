@@ -62,6 +62,8 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { BizGoMark } from "@/components/bizgo-mark";
+import { CopyLineDialog } from "@/components/copy-line-dialog";
+import type { CopyLineFormPatch } from "@/lib/copy-line-fields";
 import { ReceiptAttachmentPreview } from "@/components/receipt-attachment-preview";
 import { useExpenses } from "@/contexts/expenses-context";
 import {
@@ -206,26 +208,6 @@ export function ExpenseDetailClient({ expenseId }: Props) {
     return expense.items.reduce((s, i) => s + i.amount, 0);
   }, [expense]);
 
-  const copyCandidates = React.useMemo(() => {
-    if (!expense) return [];
-    type Row = { key: string; label: string; source: ExpenseItem };
-    const rows: Row[] = [];
-    for (const ex of expenses) {
-      for (const it of ex.items) {
-        if (ex.id === expense.id && it.id === ex.perDiemLineItemId) continue;
-        rows.push({
-          key: `${ex.id}:${it.id}`,
-          label: `${it.date} · ${it.category} · ${yen.format(it.amount)} — ${ex.title}`,
-          source: it,
-        });
-      }
-    }
-    rows.sort((a, b) =>
-      a.source.date < b.source.date ? 1 : a.source.date > b.source.date ? -1 : 0,
-    );
-    return rows;
-  }, [expenses, expense]);
-
   function preferReceiptCameraOnDevice() {
     if (typeof window === "undefined") return false;
     return window.matchMedia("(pointer: coarse)").matches;
@@ -258,32 +240,13 @@ export function ExpenseDetailClient({ expenseId }: Props) {
     onData(result.dataUrl);
   }
 
-  function applyCopiedLine(src: ExpenseItem) {
-    setCategory(src.category);
-    setAmount(String(src.amount));
-    setDescription(src.description);
-    setDate(src.date);
-    setHasReceipt(src.hasReceipt);
-    setHasInvoice(src.hasInvoice);
-    setInvoiceNumber(src.invoiceNumber ?? "");
-    setReceiptImageDataUrl(src.receiptImageDataUrl ?? null);
-    setConsumptionTaxRate(
-      isConsumptionTaxRateKey(src.consumptionTaxRate)
-        ? src.consumptionTaxRate
-        : "0",
-    );
+  function applyCopyPatch(patch: CopyLineFormPatch) {
+    setCategory(patch.category);
+    setDescription(patch.description);
+    setConsumptionTaxRate(patch.consumptionTaxRate);
+    setHasInvoice(patch.hasInvoice);
+    setInvoiceNumber(patch.invoiceNumber);
     setAddLineError(null);
-    setCopyDialogOpen(false);
-    if (src.hasReceipt && !src.receiptImageDataUrl) {
-      setTimeout(
-        () =>
-          openReceiptPicker(
-            preferReceiptCameraOnDevice() ? "camera" : "pick",
-            "add",
-          ),
-        120,
-      );
-    }
   }
 
   function addLine(e: React.FormEvent) {
@@ -469,7 +432,7 @@ export function ExpenseDetailClient({ expenseId }: Props) {
         <div className="mx-auto flex max-w-lg flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
           <div className="flex items-center gap-2">
             <Link
-              href="/"
+              href="/home"
               aria-label="TOPへ戻る"
               className={cn(
                 buttonVariants({ variant: "ghost", size: "icon-sm" }),
@@ -907,50 +870,22 @@ export function ExpenseDetailClient({ expenseId }: Props) {
 
         <Separator className="bg-border/60" />
         <p className="text-center text-xs leading-relaxed text-muted-foreground sm:text-sm">
-          まずこのブラウザの localStorage に保存されます。TOP の「Turso
+          まずこのブラウザの localStorage に保存されます。Home の「Turso
           で共有」をオンにすると、同じ Web アプリ経由で Turso
           の共有データベースにも反映されます
           {cloud.enabled && cloud.authReady === true ? "（現在オン）" : ""}。
         </p>
       </main>
 
-      <Dialog open={copyDialogOpen} onOpenChange={setCopyDialogOpen}>
-        <DialogContent className="flex max-h-[85vh] max-w-md flex-col gap-3">
-          <DialogHeader>
-            <DialogTitle>過去の明細からコピー</DialogTitle>
-          </DialogHeader>
-          <p className="text-sm text-muted-foreground">
-            日付・区分・金額（税込）・消費税区分・摘要・領収書／インボイス情報をフォームに流し込みます。領収書のみ未登録のときはカメラを開きます。
-          </p>
-          <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border/50 p-2">
-            {copyCandidates.length === 0 ? (
-              <p className="p-4 text-sm text-muted-foreground">
-                コピーできる他の明細がありません。
-              </p>
-            ) : (
-              <ul className="flex flex-col gap-1">
-                {copyCandidates.map((row) => (
-                  <li key={row.key}>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-auto w-full justify-start whitespace-normal px-3 py-2 text-left text-sm"
-                      onClick={() => applyCopiedLine(row.source)}
-                    >
-                      {row.label}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCopyDialogOpen(false)}>
-              閉じる
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      {expense ? (
+        <CopyLineDialog
+          open={copyDialogOpen}
+          onOpenChange={setCopyDialogOpen}
+          expenses={expenses}
+          currentExpenseId={expense.id}
+          onApply={applyCopyPatch}
+        />
+      ) : null}
 
       <Dialog open={editParentOpen} onOpenChange={setEditParentOpen}>
         <DialogContent className={cn("sm:max-w-md", SCROLL_DIALOG_CONTENT)}>
