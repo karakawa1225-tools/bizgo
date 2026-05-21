@@ -3,6 +3,7 @@ import type { ExpenseRecord, ExpenseTypeLabel } from "@/lib/expense-types";
 import { normalizeExpenseItem } from "@/lib/expense-item-fields";
 import { DEMO_EXPENSES } from "@/lib/demo-expenses";
 import { syncPerDiemItems } from "@/lib/per-diem-sync";
+import { coerceIsoDateString } from "@/lib/iso-date";
 import {
   deriveTravelAmounts,
   monthBounds,
@@ -84,8 +85,10 @@ export function seedFromDemo(): ExpenseRecord[] {
 }
 
 function migrateRow(e: LegacyRow): ExpenseRecord {
-  const startDate = e.startDate ?? new Date().toISOString().slice(0, 10);
-  const endDate = e.endDate ?? startDate;
+  const startDate = coerceIsoDateString(
+    e.startDate ?? new Date().toISOString().slice(0, 10),
+  );
+  const endDate = coerceIsoDateString(e.endDate ?? startDate);
   const type = e.type === "出張" || e.type === "一般経費" ? e.type : "一般経費";
   const settlementMonth =
     e.settlementMonth ??

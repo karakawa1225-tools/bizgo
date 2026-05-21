@@ -10,6 +10,7 @@ import {
   buildMonthlyGeneralRows,
   formatSettlementMonthJa,
 } from "@/lib/export-monthly-general";
+import { filterTravelExpensesForMonth } from "@/lib/export-monthly-travel";
 
 const noto = Noto_Sans_JP({
   weight: ["400", "700"],
@@ -140,6 +141,66 @@ export const TravelSiteSettlementSurface = React.forwardRef<
       <p className="mt-4 text-right text-base font-bold">
         合計：¥{sum.toLocaleString("ja-JP")}
       </p>
+    </div>
+  );
+});
+
+export const MonthlyTravelSurface = React.forwardRef<
+  HTMLDivElement,
+  { expenses: ExpenseRecord[]; ym: string }
+>(function MonthlyTravelSurface({ expenses, ym }, ref) {
+  const list = filterTravelExpensesForMonth(expenses, ym);
+  return (
+    <div
+      ref={ref}
+      className={`${noto.className} w-[210mm] bg-white p-8 text-black`}
+    >
+      <h1 className="text-lg font-bold">出張経費精算書（月次集計）</h1>
+      <p className="text-sm">対象月：{formatSettlementMonthJa(ym)}</p>
+      {list.length === 0 ? (
+        <p className="mt-4 text-sm text-black/60">
+          この月に重なる出張経費はありません。
+        </p>
+      ) : (
+        list.map((e) => {
+          const sum = totalYen(e.items);
+          return (
+            <section key={e.id} className="mt-6">
+              <h2 className="text-base font-bold">{e.title}</h2>
+              <p className="text-xs text-black/70">
+                期間：{e.startDate} — {e.endDate}
+              </p>
+              <table className="mt-2 w-full border-collapse border border-black/80 text-xs">
+                <thead>
+                  <tr>
+                    <th className={th}>日付</th>
+                    <th className={th}>区分</th>
+                    <th className={th}>金額</th>
+                    <th className={th}>摘要</th>
+                    <th className={th}>領収</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {e.items.map((it) => (
+                    <tr key={it.id}>
+                      <td className={box}>{it.date}</td>
+                      <td className={box}>{it.category}</td>
+                      <td className={`${box} text-right`}>
+                        ¥{it.amount.toLocaleString("ja-JP")}
+                      </td>
+                      <td className={box}>{it.description}</td>
+                      <td className={box}>{it.hasReceipt ? "有" : "無"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="mt-2 text-right text-sm font-semibold">
+                小計：¥{sum.toLocaleString("ja-JP")}
+              </p>
+            </section>
+          );
+        })
+      )}
     </div>
   );
 });

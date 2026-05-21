@@ -3,6 +3,7 @@ import {
   type ConsumptionTaxRateKey,
   isConsumptionTaxRateKey,
 } from "@/lib/consumption-tax";
+import { coerceIsoDateString } from "@/lib/iso-date";
 
 /** 適格請求書登録番号: T の直後に数字13桁（ハイフンは入力時のみ許容） */
 export const QUALIFIED_INVOICE_PATTERN = /^T-?(\d{13})$/i;
@@ -23,7 +24,9 @@ export function normalizeExpenseItem(raw: unknown): ExpenseItem {
   const o = (raw ?? {}) as Record<string, unknown>;
   const id = String(o.id ?? crypto.randomUUID());
   const expenseId = String(o.expenseId ?? o.expense_id ?? "");
-  const date = String(o.date ?? new Date().toISOString().slice(0, 10));
+  const date = coerceIsoDateString(
+    String(o.date ?? new Date().toISOString().slice(0, 10)),
+  );
   const category = String(o.category ?? "その他");
   const amount = Number(o.amount);
   const description = String(o.description ?? "");

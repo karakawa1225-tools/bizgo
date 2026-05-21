@@ -8,7 +8,10 @@ import { AppPageShell } from "@/components/app-page-shell";
 import { BizGoMark } from "@/components/bizgo-mark";
 import { CloudSyncCard } from "@/components/cloud-sync-card";
 import { CsvImportSection } from "@/components/csv-import-section";
-import { MonthlyGeneralSurface } from "@/components/pdf/bizgo-print-surfaces";
+import {
+  MonthlyGeneralSurface,
+  MonthlyTravelSurface,
+} from "@/components/pdf/bizgo-print-surfaces";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -54,7 +57,9 @@ const quickLinks = [
 
 export function HomePageClient() {
   const { expenses, hydrated, cloud } = useExpenses();
-  const monthPdfRef = React.useRef<HTMLDivElement>(null);
+  const monthGeneralPdfRef = React.useRef<HTMLDivElement>(null);
+  const monthTravelPdfRef = React.useRef<HTMLDivElement>(null);
+  const [pdfError, setPdfError] = React.useState<string | null>(null);
   const [exportYm, setExportYm] = React.useState(() =>
     new Date().toISOString().slice(0, 7),
   );
@@ -62,10 +67,26 @@ export function HomePageClient() {
   const monthlyGeneralStats = monthlyGeneralTotals(expenses, exportYm);
   const monthlyTravelStats = monthlyTravelTotals(expenses, exportYm);
 
-  async function handleMonthlyPdf() {
-    const el = monthPdfRef.current;
+  async function handleMonthlyGeneralPdf() {
+    const el = monthGeneralPdfRef.current;
     if (!el) return;
-    await downloadElementAsPdf(el, `経費精算_${exportYm}.pdf`);
+    setPdfError(null);
+    try {
+      await downloadElementAsPdf(el, `経費精算_${exportYm}.pdf`);
+    } catch (e) {
+      setPdfError(e instanceof Error ? e.message : "PDFの作成に失敗しました。");
+    }
+  }
+
+  async function handleMonthlyTravelPdf() {
+    const el = monthTravelPdfRef.current;
+    if (!el) return;
+    setPdfError(null);
+    try {
+      await downloadElementAsPdf(el, `出張経費精算_${exportYm}.pdf`);
+    } catch (e) {
+      setPdfError(e instanceof Error ? e.message : "PDFの作成に失敗しました。");
+    }
   }
 
   if (!hydrated) {
@@ -165,17 +186,37 @@ export function HomePageClient() {
               variant="secondary"
               size="sm"
               className="gap-1.5"
-              onClick={() => void handleMonthlyPdf()}
+              onClick={() => void handleMonthlyGeneralPdf()}
             >
               <FileText className="size-3.5" />
               一般 PDF
             </Button>
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => void handleMonthlyTravelPdf()}
+            >
+              <FileText className="size-3.5" />
+              出張 PDF
+            </Button>
           </div>
+          {pdfError ? (
+            <p className="text-sm text-destructive" role="alert">
+              {pdfError}
+            </p>
+          ) : null}
         </section>
 
-        <div className="pointer-events-none fixed top-0 left-[-12000px] z-[-1]">
+        <div className="pointer-events-none fixed top-0 left-0 -z-50 opacity-0">
           <MonthlyGeneralSurface
-            ref={monthPdfRef}
+            ref={monthGeneralPdfRef}
+            expenses={expenses}
+            ym={exportYm}
+          />
+          <MonthlyTravelSurface
+            ref={monthTravelPdfRef}
             expenses={expenses}
             ym={exportYm}
           />

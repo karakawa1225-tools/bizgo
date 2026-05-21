@@ -15,6 +15,7 @@ import {
   createTravelExpensePayload,
 } from "@/lib/expenses-storage";
 import { parseQualifiedInvoiceNumber } from "@/lib/expense-item-fields";
+import { coerceIsoDateString, normalizeIsoDateString } from "@/lib/iso-date";
 import {
   buildHeaderIndex,
   csvCell,
@@ -74,7 +75,8 @@ function rowToLineItem(
   idx: Record<string, number>,
   expenseId: string,
 ): ExpenseItem | null {
-  const date = csvCell(row, idx, "明細日付");
+  const dateRaw = csvCell(row, idx, "明細日付");
+  const date = normalizeIsoDateString(dateRaw) ?? dateRaw.trim();
   const amount = parseYen(csvCell(row, idx, "金額（税込）"));
   if (!date || amount <= 0) return null;
 
@@ -203,30 +205,51 @@ function importTravelRows(
     }
   >();
 
+  const lastKeyByTitle = new Map<string, string>();
+
   for (const row of dataRows) {
     const title = csvCell(row, header, "件名");
     if (!title) continue;
-    if (!groups.has(title)) {
-      groups.set(title, {
-        title,
-        startDate: "",
-        endDate: "",
-        km: 0,
-        overnight: false,
-        items: [],
-      });
-    }
-    const g = groups.get(title)!;
 
-    const tripStart = csvCell(row, header, "出張開始日");
+    const tripStartRaw = csvCell(row, header, "出張開始日");
+    const tripStart = tripStartRaw
+      ? normalizeIsoDateString(tripStartRaw) ?? tripStartRaw.trim()
+      : "";
+    const tripEndRaw = csvCell(row, header, "出張終了日");
+    const tripEnd = tripEndRaw
+      ? normalizeIsoDateString(tripEndRaw) ?? tripEndRaw.trim()
+      : tripStart;
+
+    let gKey: string;
     if (tripStart) {
-      g.startDate = tripStart;
-      g.endDate = csvCell(row, header, "出張終了日") || tripStart;
-      g.km = parseYen(csvCell(row, header, "片道距離（km）"));
-      g.overnight = parseYesNo(csvCell(row, header, "宿泊"));
+      gKey = `${title}|||${tripStart}|||${tripEnd || tripStart}`;
+      lastKeyByTitle.set(title, gKey);
+      if (!groups.has(gKey)) {
+        groups.set(gKey, {
+          title,
+          startDate: tripStart,
+          endDate: tripEnd || tripStart,
+          km: parseYen(csvCell(row, header, "片道距離（km）")),
+          overnight: parseYesNo(csvCell(row, header, "宿泊")),
+          items: [],
+        });
+      }
+    } else {
+      gKey = lastKeyByTitle.get(title) ?? `${title}|||pending`;
+      if (!groups.has(gKey)) {
+        groups.set(gKey, {
+          title,
+          startDate: "",
+          endDate: "",
+          km: 0,
+          overnight: false,
+          items: [],
+        });
+      }
     }
+    const g = groups.get(gKey)!;
 
-    const item = rowToLineItem(row, header, title);
+    const item = rowToLineItem(row, header, gKey);
     if (item) g.items.push(item);
   }
 
@@ -243,12 +266,14 @@ function importTravelRows(
       }
     }
     if (!g.startDate || g.items.length === 0) continue;
+    const startDate = coerceIsoDateString(g.startDate);
+    const endDate = coerceIsoDateString(g.endDate || g.startDate);
     const id = crypto.randomUUID();
     let base = createTravelExpensePayload({
       id,
       title: g.title,
-      startDate: g.startDate,
-      endDate: g.endDate || g.startDate,
+      startDate,
+      endDate,
       distanceKmOneWay: g.km,
       hasOvernight: g.overnight,
     });

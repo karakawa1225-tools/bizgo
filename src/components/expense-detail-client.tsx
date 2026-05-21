@@ -378,19 +378,31 @@ export function ExpenseDetailClient({ expenseId }: Props) {
   async function downloadDefinitionPdf() {
     const el = defPrintRef.current;
     if (!el) return;
-    await downloadElementAsPdf(
-      el,
-      `出張旅費定義書_${expense?.title ?? "untitled"}.pdf`,
-    );
+    try {
+      await downloadElementAsPdf(
+        el,
+        `出張旅費定義書_${expense?.title ?? "untitled"}.pdf`,
+      );
+    } catch (e) {
+      window.alert(
+        e instanceof Error ? e.message : "PDFの作成に失敗しました。",
+      );
+    }
   }
 
   async function downloadSitePdf() {
     const el = sitePrintRef.current;
     if (!el) return;
-    await downloadElementAsPdf(
-      el,
-      `出張経費精算_${expense?.title ?? "site"}.pdf`,
-    );
+    try {
+      await downloadElementAsPdf(
+        el,
+        `出張経費精算_${expense?.title ?? "site"}.pdf`,
+      );
+    } catch (e) {
+      window.alert(
+        e instanceof Error ? e.message : "PDFの作成に失敗しました。",
+      );
+    }
   }
 
   function confirmDeleteParent() {
@@ -494,7 +506,7 @@ export function ExpenseDetailClient({ expenseId }: Props) {
           </Button>
         </div>
 
-        {expense.type === "出張" && travelDerived ? (
+        {expense.type === "出張" ? (
           <>
             <div className="flex flex-wrap gap-2">
               <Button
@@ -518,25 +530,27 @@ export function ExpenseDetailClient({ expenseId }: Props) {
                 この現場の出張経費 PDF
               </Button>
             </div>
-            <Card className="border-border/50 bg-muted/20">
-              <CardHeader className="gap-1">
-                <CardTitle className="text-sm">出張条件・日当（役員）</CardTitle>
-                <CardDescription className="space-y-1 text-xs">
-                  <span>
-                    片道 {expense.distanceKmOneWay ?? 0} km · 宿泊{" "}
-                    {expense.hasOvernight ? "あり" : "なし"} · 日数{" "}
-                    {travelDerived.travelDays} 日
-                  </span>
-                  <br />
-                  <span>
-                    日当支給：{travelDerived.perDiemEligible ? "該当" : "非該当"}{" "}
-                    · 日当合計（理論値）¥
-                    {travelDerived.perDiemTotalYen.toLocaleString("ja-JP")}
-                  </span>
-                </CardDescription>
-              </CardHeader>
-            </Card>
-            <div className="pointer-events-none fixed top-0 left-[-12000px] z-[-1]">
+            {travelDerived ? (
+              <Card className="border-border/50 bg-muted/20">
+                <CardHeader className="gap-1">
+                  <CardTitle className="text-sm">出張条件・日当（役員）</CardTitle>
+                  <CardDescription className="space-y-1 text-xs">
+                    <span>
+                      片道 {expense.distanceKmOneWay ?? 0} km · 宿泊{" "}
+                      {expense.hasOvernight ? "あり" : "なし"} · 日数{" "}
+                      {travelDerived.travelDays} 日
+                    </span>
+                    <br />
+                    <span>
+                      日当支給：{travelDerived.perDiemEligible ? "該当" : "非該当"}{" "}
+                      · 日当合計（理論値）¥
+                      {travelDerived.perDiemTotalYen.toLocaleString("ja-JP")}
+                    </span>
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ) : null}
+            <div className="pointer-events-none fixed top-0 left-0 -z-50 opacity-0">
               <TravelDefinitionSurface ref={defPrintRef} expense={expense} />
               <TravelSiteSettlementSurface ref={sitePrintRef} expense={expense} />
             </div>

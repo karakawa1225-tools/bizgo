@@ -1,24 +1,32 @@
 import type { ExpenseRecord } from "@/lib/expense-types";
 import type { ExpenseTypeLabel } from "@/lib/expenses-storage";
+import { coerceIsoDateString } from "@/lib/iso-date";
 import { monthBounds } from "@/lib/travel-calculations";
+
+function travelDateRange(e: ExpenseRecord): { start: string; end: string } | null {
+  if (e.type !== "出張" || !e.startDate || !e.endDate) return null;
+  return {
+    start: coerceIsoDateString(e.startDate),
+    end: coerceIsoDateString(e.endDate),
+  };
+}
 
 /** 出張期間が YYYY-MM と重なるか（月次 CSV 出力と同じ基準） */
 export function travelExpenseOverlapsMonth(
   e: ExpenseRecord,
   ym: string,
 ): boolean {
-  if (e.type !== "出張" || !e.startDate || !e.endDate) return false;
+  const range = travelDateRange(e);
+  if (!range) return false;
   const { start: monthStart, end: monthEnd } = monthBounds(ym);
-  return e.startDate <= monthEnd && e.endDate >= monthStart;
+  return range.start <= monthEnd && range.end >= monthStart;
 }
 
 /** 出張開始〜終了にまたがる YYYY-MM 一覧 */
 export function monthsOverlappingTravelExpense(e: ExpenseRecord): string[] {
-  if (e.type !== "出張" || !e.startDate || !e.endDate) return [];
-  return enumerateYmInclusive(
-    e.startDate.slice(0, 7),
-    e.endDate.slice(0, 7),
-  );
+  const range = travelDateRange(e);
+  if (!range) return [];
+  return enumerateYmInclusive(range.start.slice(0, 7), range.end.slice(0, 7));
 }
 
 function enumerateYmInclusive(startYm: string, endYm: string): string[] {
