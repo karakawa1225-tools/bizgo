@@ -1,13 +1,19 @@
 "use client";
 
+import * as React from "react";
 import type { CSSProperties, ReactNode } from "react";
 
 import type { ExpenseItem } from "@/db/schema";
+import {
+  splitTaxIncludedYen,
+  toConsumptionTaxRateKey,
+} from "@/lib/consumption-tax";
 import { formatPdfYen } from "@/lib/pdf-format";
 import { PDF_APPLICANT_NAME, PDF_COMPANY_NAME } from "@/lib/pdf-report-meta";
 
 const BORDER = "1px solid #000000";
-const ROW_HEIGHT = "7.5mm";
+const ROW_H = "7.2mm";
+const BLOCK_H = "14.4mm";
 
 export const settlementPdfPageStyle: CSSProperties = {
   width: "210mm",
@@ -16,29 +22,84 @@ export const settlementPdfPageStyle: CSSProperties = {
   padding: "10mm 12mm 12mm",
   backgroundColor: "#ffffff",
   color: "#000000",
-  fontSize: "9.5pt",
-  lineHeight: 1.3,
+  fontSize: "9pt",
+  lineHeight: 1.25,
 };
 
-const cellBase: CSSProperties = {
+const cell: CSSProperties = {
   border: BORDER,
-  padding: "1.5mm 2mm",
-  height: ROW_HEIGHT,
-  maxHeight: ROW_HEIGHT,
+  padding: "1mm 1.5mm",
   verticalAlign: "middle",
   overflow: "hidden",
-  whiteSpace: "nowrap",
-  textOverflow: "ellipsis",
   boxSizing: "border-box",
 };
 
-const thStyle: CSSProperties = {
-  ...cellBase,
+const line1: CSSProperties = {
+  ...cell,
+  height: ROW_H,
+  maxHeight: ROW_H,
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+};
+
+const line2: CSSProperties = {
+  ...cell,
+  height: ROW_H,
+  maxHeight: ROW_H,
+  fontSize: "8pt",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+};
+
+const span2: CSSProperties = {
+  ...cell,
+  height: BLOCK_H,
+  maxHeight: BLOCK_H,
+  verticalAlign: "middle",
+};
+
+const th: CSSProperties = {
+  ...cell,
   backgroundColor: "#f0f0f0",
   fontWeight: 700,
   textAlign: "center",
-  fontSize: "9pt",
+  fontSize: "8pt",
+  whiteSpace: "nowrap",
 };
+
+const thTall: CSSProperties = { ...th, height: BLOCK_H };
+const thShort: CSSProperties = { ...th, height: ROW_H };
+
+const yen: CSSProperties = {
+  textAlign: "right",
+  fontVariantNumeric: "tabular-nums",
+};
+
+const footLine: CSSProperties = { borderTop: "2px solid #000000" };
+
+const line2Spacer: CSSProperties = {
+  ...line2,
+  backgroundColor: "#fafafa",
+  borderTop: "none",
+};
+
+function lineTax(it: ExpenseItem) {
+  const rate = toConsumptionTaxRateKey(it.consumptionTaxRate);
+  return splitTaxIncludedYen(it.amount, rate);
+}
+
+function sumLines(items: ExpenseItem[]) {
+  let inclusive = 0;
+  let exclusive = 0;
+  let tax = 0;
+  for (const it of items) {
+    inclusive += it.amount;
+    const s = lineTax(it);
+    exclusive += s.exclusiveYen;
+    tax += s.taxYen;
+  }
+  return { inclusive, exclusive, tax };
+}
 
 type HeaderProps = {
   documentLabel: string;
@@ -117,11 +178,18 @@ type TableProps = {
   footer?: ReactNode;
 };
 
+/**
+ * 9列: 日付 | 区分 | 摘要 | 税込 | 税抜 | 消費税 | インボイス | 番号 | 領収
+ * 1行目: 日付・区分・摘要・税込・領収（縦結合）
+ * 2行目: 税抜・消費税・インボイス・番号
+ */
 export function SettlementLineItemsTable({
   items,
-  totalYen: sum,
+  totalYen: sumInclusive,
   footer,
 }: TableProps) {
+  const totals = sumLines(items);
+
   return (
     <div style={{ width: "100%" }}>
       <table
@@ -133,28 +201,47 @@ export function SettlementLineItemsTable({
         }}
       >
         <colgroup>
+          <col style={{ width: "9%" }} />
+          <col style={{ width: "10%" }} />
+          <col style={{ width: "26%" }} />
           <col style={{ width: "12%" }} />
-          <col style={{ width: "14%" }} />
-          <col style={{ width: "52%" }} />
+          <col style={{ width: "11%" }} />
+          <col style={{ width: "10%" }} />
+          <col style={{ width: "8%" }} />
           <col style={{ width: "17%" }} />
           <col style={{ width: "5%" }} />
         </colgroup>
         <thead>
           <tr>
-            <th style={thStyle}>日付</th>
-            <th style={thStyle}>区分</th>
-            <th style={thStyle}>摘要</th>
-            <th style={thStyle}>金額</th>
-            <th style={thStyle}>領収</th>
+            <th style={thTall} rowSpan={2}>
+              日付
+            </th>
+            <th style={thTall} rowSpan={2}>
+              区分
+            </th>
+            <th style={thShort}>摘要</th>
+            <th style={thShort}>金額（税込）</th>
+            <th colSpan={4} style={thShort} />
+            <th style={thTall} rowSpan={2}>
+              領収
+            </th>
+          </tr>
+          <tr>
+            <th colSpan={2} style={{ ...thShort, backgroundColor: "#f0f0f0" }} />
+            <th style={thShort}>税抜金額</th>
+            <th style={thShort}>消費税額</th>
+            <th style={thShort}>インボイス</th>
+            <th style={thShort}>登録番号</th>
           </tr>
         </thead>
         <tbody>
           {items.length === 0 ? (
             <tr>
               <td
-                colSpan={5}
+                colSpan={9}
                 style={{
-                  ...cellBase,
+                  ...cell,
+                  height: BLOCK_H,
                   textAlign: "center",
                   color: "#666666",
                 }}
@@ -163,70 +250,94 @@ export function SettlementLineItemsTable({
               </td>
             </tr>
           ) : (
-            items.map((it) => (
-              <tr key={it.id}>
-                <td style={{ ...cellBase, textAlign: "center", fontSize: "9pt" }}>
-                  {it.date}
-                </td>
-                <td style={{ ...cellBase, fontSize: "9pt" }}>{it.category}</td>
-                <td
-                  style={{
-                    ...cellBase,
-                    fontSize: "9pt",
-                    whiteSpace: "nowrap",
-                  }}
-                  title={it.description}
-                >
-                  {it.description}
-                </td>
-                <td
-                  style={{
-                    ...cellBase,
-                    textAlign: "right",
-                    fontVariantNumeric: "tabular-nums",
-                    fontWeight: 600,
-                  }}
-                >
-                  {formatPdfYen(it.amount)}
-                </td>
-                <td style={{ ...cellBase, textAlign: "center", fontSize: "9pt" }}>
-                  {it.hasReceipt ? "有" : "無"}
-                </td>
-              </tr>
-            ))
+            items.map((it) => {
+              const { exclusiveYen, taxYen } = lineTax(it);
+              const invLabel = it.hasInvoice ? "有" : "無";
+              const invNo =
+                it.hasInvoice && it.invoiceNumber
+                  ? it.invoiceNumber
+                  : "—";
+
+              return (
+                <React.Fragment key={it.id}>
+                  <tr>
+                    <td
+                      style={{ ...span2, textAlign: "center", fontSize: "8.5pt" }}
+                      rowSpan={2}
+                    >
+                      {it.date}
+                    </td>
+                    <td style={{ ...span2, fontSize: "8.5pt" }} rowSpan={2}>
+                      {it.category}
+                    </td>
+                    <td style={line1} title={it.description}>
+                      {it.description}
+                    </td>
+                    <td style={{ ...line1, ...yen, fontWeight: 600 }}>
+                      {formatPdfYen(it.amount)}
+                    </td>
+                    <td colSpan={4} style={line1} />
+                    <td
+                      style={{ ...span2, textAlign: "center", fontSize: "8.5pt" }}
+                      rowSpan={2}
+                    >
+                      {it.hasReceipt ? "有" : "無"}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colSpan={2} style={line2Spacer} />
+                    <td style={{ ...line2, ...yen }}>
+                      {formatPdfYen(exclusiveYen)}
+                    </td>
+                    <td style={{ ...line2, ...yen }}>{formatPdfYen(taxYen)}</td>
+                    <td style={{ ...line2, textAlign: "center" }}>{invLabel}</td>
+                    <td style={line2} title={invNo}>
+                      {invNo}
+                    </td>
+                  </tr>
+                </React.Fragment>
+              );
+            })
           )}
         </tbody>
         <tfoot>
           <tr>
             <td
-              colSpan={3}
+              colSpan={2}
+              rowSpan={2}
               style={{
-                ...cellBase,
+                ...span2,
                 textAlign: "right",
                 fontWeight: 700,
-                borderTop: "2px solid #000000",
+                ...footLine,
               }}
             >
               合計
             </td>
+            <td style={{ ...line1, ...footLine }} />
             <td
               style={{
-                ...cellBase,
-                textAlign: "right",
+                ...line1,
+                ...yen,
                 fontWeight: 700,
-                fontVariantNumeric: "tabular-nums",
-                borderTop: "2px solid #000000",
-                fontSize: "10pt",
+                ...footLine,
               }}
             >
-              {formatPdfYen(sum)}
+              {formatPdfYen(totals.inclusive || sumInclusive)}
             </td>
-            <td
-              style={{
-                ...cellBase,
-                borderTop: "2px solid #000000",
-              }}
-            />
+            <td colSpan={4} style={{ ...line1, ...footLine }} />
+            <td rowSpan={2} style={{ ...span2, ...footLine }} />
+          </tr>
+          <tr>
+            <td colSpan={2} style={{ ...line2Spacer, ...footLine }} />
+            <td style={{ ...line2, ...yen, fontWeight: 700, ...footLine }}>
+              {formatPdfYen(totals.exclusive)}
+            </td>
+            <td style={{ ...line2, ...yen, fontWeight: 700, ...footLine }}>
+              {formatPdfYen(totals.tax)}
+            </td>
+            <td style={{ ...line2, ...footLine }} />
+            <td style={{ ...line2, ...footLine }} />
           </tr>
         </tfoot>
       </table>
