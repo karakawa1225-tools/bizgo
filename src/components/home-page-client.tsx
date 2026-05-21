@@ -7,6 +7,7 @@ import { Building2, FileText, LayoutGrid, Sparkles } from "lucide-react";
 import { AppPageShell } from "@/components/app-page-shell";
 import { BizGoMark } from "@/components/bizgo-mark";
 import { CloudSyncCard } from "@/components/cloud-sync-card";
+import { CsvImportSection } from "@/components/csv-import-section";
 import { MonthlyGeneralSurface } from "@/components/pdf/bizgo-print-surfaces";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -109,6 +110,10 @@ export function HomePageClient() {
         </section>
 
         <CloudSyncCard cloud={cloud} />
+
+        <Separator />
+
+        <CsvImportSection />
 
         <Separator />
 

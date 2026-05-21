@@ -1,4 +1,5 @@
 import type { ExpenseRecord } from "@/lib/expense-types";
+import { GENERAL_CSV_HEADERS } from "@/lib/csv-monthly-headers";
 import { downloadCsv } from "@/lib/export-csv";
 import { totalYen } from "@/lib/expenses-storage";
 import {
@@ -17,26 +18,26 @@ export function formatSettlementMonthJa(ym: string): string {
   return `${y}年${month}月`;
 }
 
+/** CSV の「2026年3月」または `YYYY-MM` を精算月キーに戻す */
+export function parseSettlementMonthJa(label: string): string | null {
+  const t = label.trim();
+  const ja = t.match(/^(\d{4})年(\d{1,2})月$/);
+  if (ja) {
+    const month = Number(ja[2]);
+    if (month < 1 || month > 12) return null;
+    return `${ja[1]}-${String(month).padStart(2, "0")}`;
+  }
+  if (/^\d{4}-\d{2}$/.test(t)) return t;
+  return null;
+}
+
 /** 指定月の一般経費をまとめた行（CSV） */
 export function buildMonthlyGeneralRows(
   expenses: ExpenseRecord[],
   ym: string,
 ): (string | number)[][] {
   const monthLabel = formatSettlementMonthJa(ym);
-  const header = [
-    "精算月",
-    "件名",
-    "明細日付",
-    "区分",
-    "金額（税込）",
-    "消費税区分",
-    "消費税別金額",
-    "消費税額",
-    "摘要",
-    "領収書",
-    "インボイス",
-    "登録番号",
-  ];
+  const header = [...GENERAL_CSV_HEADERS];
   const rows: (string | number)[][] = [header];
   const list = expenses.filter(
     (e) => e.type === "一般経費" && e.settlementMonth === ym,

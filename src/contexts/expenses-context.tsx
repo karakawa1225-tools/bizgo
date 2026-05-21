@@ -12,8 +12,21 @@ import {
   saveExpenses,
   type ExpenseTypeLabel,
 } from "@/lib/expenses-storage";
+import {
+  importMonthlyCsvText,
+  mergeImportedExpenses,
+  readCsvFile,
+  type CsvImportFormat,
+} from "@/lib/import-monthly-csv";
 import { syncPerDiemItems } from "@/lib/per-diem-sync";
 import { monthBounds } from "@/lib/travel-calculations";
+
+export type CsvImportOutcome = {
+  format: CsvImportFormat;
+  applicationCount: number;
+  lineCount: number;
+  warnings: string[];
+};
 
 type PatchExpense = Partial<
   Pick<
@@ -91,6 +104,11 @@ type Ctx = {
     >,
   ) => void;
   removeItem: (expenseId: string, itemId: string) => void;
+  /** BizGo が出力した月次 CSV を取り込む（expectedFormat で種別を限定可能） */
+  importExpensesFromCsv: (
+    file: File,
+    options?: { expectedFormat?: CsvImportFormat },
+  ) => Promise<CsvImportOutcome>;
   cloud: CloudSyncControls;
 };
 
@@ -337,6 +355,44 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
     await pullFromCloud();
   }, [pullFromCloud]);
 
+  const importExpensesFromCsv = React.useCallback(
+    async (
+      file: File,
+      options?: { expectedFormat?: CsvImportFormat },
+    ): Promise<CsvImportOutcome> => {
+      const text = await readCsvFile(file);
+      const result = importMonthlyCsvText(text);
+      if (
+        options?.expectedFormat &&
+        result.format !== options.expectedFormat
+      ) {
+        const want =
+          options.expectedFormat === "general"
+            ? "経費精算書（一般）"
+            : "出張経費精算書";
+        const got =
+          result.format === "general"
+            ? "経費精算書（一般）"
+            : "出張経費精算書";
+        throw new Error(
+          `${want}用の CSV を選んでください（このファイルは${got}形式です）。`,
+        );
+      }
+      setExpenses((prev) => mergeImportedExpenses(prev, result.expenses));
+      const lineCount = result.expenses.reduce(
+        (s, e) => s + e.items.length,
+        0,
+      );
+      return {
+        format: result.format,
+        applicationCount: result.expenses.length,
+        lineCount,
+        warnings: result.warnings,
+      };
+    },
+    [],
+  );
+
   const getExpense = React.useCallback(
     (id: string) => expenses.find((e) => e.id === id),
     [expenses],
@@ -519,6 +575,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
       addItem,
       updateItem,
       removeItem,
+      importExpensesFromCsv,
       cloud,
     }),
     [
@@ -532,6 +589,7 @@ export function ExpensesProvider({ children }: { children: React.ReactNode }) {
       addItem,
       updateItem,
       removeItem,
+      importExpensesFromCsv,
       cloud,
     ],
   );

@@ -1,4 +1,5 @@
 import type { ExpenseRecord } from "@/lib/expense-types";
+import { TRAVEL_CSV_HEADERS } from "@/lib/csv-monthly-headers";
 import { downloadCsv } from "@/lib/export-csv";
 import { formatSettlementMonthJa } from "@/lib/export-monthly-general";
 import { totalYen } from "@/lib/expenses-storage";
@@ -59,26 +60,7 @@ export function buildMonthlyTravelRows(
   ym: string,
 ): (string | number)[][] {
   const monthLabel = formatSettlementMonthJa(ym);
-  const header = [
-    "対象月",
-    "件名",
-    "出張開始日",
-    "出張終了日",
-    "出張日数",
-    "片道距離（km）",
-    "宿泊",
-    "日当合計",
-    "明細日付",
-    "区分",
-    "金額（税込）",
-    "消費税区分",
-    "消費税別金額",
-    "消費税額",
-    "摘要",
-    "領収書",
-    "インボイス",
-    "登録番号",
-  ];
+  const header = [...TRAVEL_CSV_HEADERS];
   const rows: (string | number)[][] = [header];
   const list = filterTravelExpensesForMonth(expenses, ym);
 
