@@ -23,6 +23,10 @@ const PDF_CAPTURE_SAFE_CSS = `
   th {
     background-color: #f0f0f0 !important;
   }
+  td, th {
+    overflow: visible !important;
+    text-overflow: clip !important;
+  }
 `;
 
 /** グローバル CSS（lab/oklch）を読ませず、印刷 DOM だけをキャプチャ */

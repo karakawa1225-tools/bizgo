@@ -46,14 +46,22 @@ const thCell: React.CSSProperties = {
 function PdfPage({
   children,
   refProp,
+  pageBreakAfter = true,
 }: {
   children: React.ReactNode;
   refProp?: React.Ref<HTMLDivElement>;
+  pageBreakAfter?: boolean;
 }) {
   return (
     <div
       ref={refProp}
-      style={{ ...settlementPdfPageStyle, fontFamily: noto.style.fontFamily }}
+      style={{
+        ...settlementPdfPageStyle,
+        fontFamily: noto.style.fontFamily,
+        ...(pageBreakAfter
+          ? { pageBreakAfter: "always", breakAfter: "page" as const }
+          : {}),
+      }}
     >
       {children}
     </div>
@@ -163,7 +171,7 @@ export const MonthlyTravelSurface = React.forwardRef<
   return (
     <div ref={ref} style={{ fontFamily: noto.style.fontFamily }}>
       {list.map((e, i) => (
-        <PdfPage key={e.id}>
+        <PdfPage key={e.id} pageBreakAfter={i < list.length - 1}>
           <SettlementPdfHeader
             documentLabel={`出張経費精算書（月次）　対象月：${monthLabel}${list.length > 1 ? `　${i + 1}/${list.length}` : ""}`}
             title={e.title}
@@ -232,7 +240,10 @@ export const MonthlyGeneralSurface = React.forwardRef<
         });
 
         return (
-          <PdfPage key={title}>
+          <PdfPage
+            key={title}
+            pageBreakAfter={i < groups.length - 1}
+          >
             <SettlementPdfHeader
               documentLabel={`経費精算書（月次）　精算月：${monthLabel}${groups.length > 1 ? `　${i + 1}/${groups.length}` : ""}`}
               title={title}
