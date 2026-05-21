@@ -12,7 +12,7 @@ const PDF_CAPTURE_SAFE_CSS = `
   *, *::before, *::after {
     color: #000000 !important;
     background-color: transparent !important;
-    border-color: rgba(0, 0, 0, 0.8) !important;
+    border-color: #000000 !important;
     outline-color: #000000 !important;
     box-shadow: none !important;
     text-shadow: none !important;
@@ -21,7 +21,7 @@ const PDF_CAPTURE_SAFE_CSS = `
     border-collapse: collapse !important;
   }
   th {
-    background-color: rgba(0, 0, 0, 0.05) !important;
+    background-color: #f0f0f0 !important;
   }
 `;
 
@@ -38,8 +38,7 @@ async function renderPrintElementToCanvas(
   document.body.appendChild(iframe);
 
   const doc = iframe.contentDocument;
-  const win = iframe.contentWindow;
-  if (!doc || !win) {
+  if (!doc) {
     iframe.remove();
     throw new Error("PDF用の描画領域を用意できませんでした。");
   }
@@ -78,7 +77,38 @@ async function renderPrintElementToCanvas(
   }
 }
 
-/** A4 1ページに収める（長文は縮小） */
+/** 幅を A4 に合わせ、高さは必要なら複数ページに分割 */
+function addCanvasToPdf(
+  pdf: jsPDF,
+  canvas: HTMLCanvasElement,
+  margin: number,
+): void {
+  const pageW = pdf.internal.pageSize.getWidth();
+  const pageH = pdf.internal.pageSize.getHeight();
+  const maxW = pageW - 2 * margin;
+  const maxH = pageH - 2 * margin;
+  const pxToMm = 25.4 / 96;
+  const imgWmm = canvas.width * pxToMm;
+  const imgHmm = canvas.height * pxToMm;
+  const w = maxW;
+  const h = (imgHmm * maxW) / imgWmm;
+
+  const imgData = canvas.toDataURL("image/png", 1);
+  let offset = 0;
+  let pageIndex = 0;
+
+  while (offset < h - 0.01) {
+    if (pageIndex > 0) {
+      pdf.addPage();
+    }
+    pdf.addImage(imgData, "PNG", margin, margin - offset, w, h);
+    offset += maxH;
+    pageIndex += 1;
+    if (pageIndex > 40) break;
+  }
+}
+
+/** A4 に出力（長い帳票は複数ページ） */
 export async function downloadElementAsPdf(
   element: HTMLElement,
   filename: string,
@@ -94,26 +124,13 @@ export async function downloadElementAsPdf(
       throw new Error("PDF用の画面が描画できませんでした。");
     }
 
-    const imgData = canvas.toDataURL("image/png", 1);
     const pdf = new jsPDF({
       unit: "mm",
       format: "a4",
       orientation: "portrait",
     });
-    const pageW = pdf.internal.pageSize.getWidth();
-    const pageH = pdf.internal.pageSize.getHeight();
-    const margin = 10;
-    const maxW = pageW - 2 * margin;
-    const maxH = pageH - 2 * margin;
-    const pxToMm = 25.4 / 96;
-    const imgWmm = canvas.width * pxToMm;
-    const imgHmm = canvas.height * pxToMm;
-    const ratio = Math.min(maxW / imgWmm, maxH / imgHmm, 1);
-    const w = imgWmm * ratio;
-    const h = imgHmm * ratio;
-    const x = margin + (maxW - w) / 2;
-    const y = margin + (maxH - h) / 2;
-    pdf.addImage(imgData, "PNG", x, y, w, h);
+    const margin = 8;
+    addCanvasToPdf(pdf, canvas, margin);
     pdf.save(filename);
   } catch (err) {
     const msg =

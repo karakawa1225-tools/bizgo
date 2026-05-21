@@ -3,22 +3,62 @@
 import * as React from "react";
 import { Noto_Sans_JP } from "next/font/google";
 
+import {
+  SettlementLineItemsTable,
+  SettlementPdfHeader,
+  settlementPdfPageStyle,
+} from "@/components/pdf/settlement-pdf-layout";
+import type { ExpenseItem } from "@/db/schema";
 import type { ExpenseRecord } from "@/lib/expense-types";
-import { deriveTravelAmounts } from "@/lib/travel-calculations";
-import { totalYen } from "@/lib/expenses-storage";
+import { normalizeExpenseItem } from "@/lib/expense-item-fields";
+import { formatPdfYen } from "@/lib/pdf-format";
 import {
   buildMonthlyGeneralRows,
   formatSettlementMonthJa,
 } from "@/lib/export-monthly-general";
 import { filterTravelExpensesForMonth } from "@/lib/export-monthly-travel";
+import { deriveTravelAmounts } from "@/lib/travel-calculations";
+import { totalYen } from "@/lib/expenses-storage";
 
 const noto = Noto_Sans_JP({
   weight: ["400", "700"],
   subsets: ["latin"],
 });
 
-const box = "border border-black/80 px-2 py-1 text-sm";
-const th = `${box} bg-black/5 font-semibold`;
+const BORDER = "1px solid #000000";
+const cell: React.CSSProperties = {
+  border: BORDER,
+  padding: "1.5mm 2mm",
+  height: "7.5mm",
+  verticalAlign: "middle",
+  overflow: "hidden",
+  whiteSpace: "nowrap",
+  textOverflow: "ellipsis",
+};
+const thCell: React.CSSProperties = {
+  ...cell,
+  backgroundColor: "#f0f0f0",
+  fontWeight: 700,
+  textAlign: "center",
+  fontSize: "9pt",
+};
+
+function PdfPage({
+  children,
+  refProp,
+}: {
+  children: React.ReactNode;
+  refProp?: React.Ref<HTMLDivElement>;
+}) {
+  return (
+    <div
+      ref={refProp}
+      style={{ ...settlementPdfPageStyle, fontFamily: noto.style.fontFamily }}
+    >
+      {children}
+    </div>
+  );
+}
 
 /** 画面外に置くプリント用ルート（白背景） */
 export const TravelDefinitionSurface = React.forwardRef<
@@ -33,69 +73,52 @@ export const TravelDefinitionSurface = React.forwardRef<
     expense.executivePerDiem,
   );
   return (
-    <div
-      ref={ref}
-      className={`${noto.className} w-[210mm] bg-white p-8 text-black`}
-    >
-      <h1 className="text-center text-lg font-bold">出張旅費定義書</h1>
-      <p className="mt-2 text-center text-xs text-black/70">
-        BizGo — 社内用様式（経理連携前の下書き）
-      </p>
-      <table className="mt-6 w-full border-collapse border border-black/80 text-sm">
+    <PdfPage refProp={ref}>
+      <SettlementPdfHeader
+        documentLabel="出張旅費定義書"
+        title={expense.title}
+        metaLines={[
+          `出張期間：${expense.startDate} 〜 ${expense.endDate}（${d.travelDays} 日）`,
+          `片道 ${expense.distanceKmOneWay ?? 0} km · 宿泊 ${expense.hasOvernight ? "あり" : "なし"}`,
+        ]}
+      />
+      <table
+        style={{
+          width: "100%",
+          borderCollapse: "collapse",
+          tableLayout: "fixed",
+          border: BORDER,
+          fontSize: "9pt",
+        }}
+      >
         <tbody>
           <tr>
-            <td className={th}>件名（現場・案件）</td>
-            <td className={box} colSpan={3}>
-              {expense.title}
-            </td>
+            <td style={{ ...thCell, width: "28%" }}>日当区分</td>
+            <td style={cell}>役員（¥3,500／日）</td>
           </tr>
           <tr>
-            <td className={th}>出張期間</td>
-            <td className={box}>
-              {expense.startDate} 〜 {expense.endDate}
-            </td>
-            <td className={th}>出張日数（暦日）</td>
-            <td className={box}>{d.travelDays} 日</td>
+            <td style={thCell}>日当の要件</td>
+            <td style={cell}>片道 100km 超 または 宿泊あり</td>
           </tr>
           <tr>
-            <td className={th}>現場までの片道距離</td>
-            <td className={box}>{expense.distanceKmOneWay ?? 0} km</td>
-            <td className={th}>宿泊の有無</td>
-            <td className={box}>
-              {expense.hasOvernight ? "あり" : "なし"}
-            </td>
+            <td style={thCell}>要件該当</td>
+            <td style={cell}>{d.perDiemEligible ? "該当" : "非該当"}</td>
           </tr>
           <tr>
-            <td className={th}>日当の要件</td>
-            <td className={box} colSpan={3}>
-              片道 100km 超 または 宿泊あり のとき支給（会社規程に準ずる）
-            </td>
-          </tr>
-          <tr>
-            <td className={th}>日当区分</td>
-            <td className={box}>役員（¥3,500／日）</td>
-            <td className={th}>要件該当</td>
-            <td className={box}>{d.perDiemEligible ? "該当" : "非該当"}</td>
-          </tr>
-          <tr>
-            <td className={th}>日当合計（自動計算）</td>
-            <td className={box} colSpan={3}>
-              ¥{d.perDiemTotalYen.toLocaleString("ja-JP")}{" "}
+            <td style={thCell}>日当合計</td>
+            <td style={{ ...cell, fontWeight: 700 }}>
+              {formatPdfYen(d.perDiemTotalYen)}
               {d.perDiemEligible
-                ? `（${d.travelDays} 日 × ¥${d.perDiemRateYen.toLocaleString("ja-JP")}）`
+                ? `（${d.travelDays} 日 × ${formatPdfYen(d.perDiemRateYen)}）`
                 : ""}
             </td>
           </tr>
         </tbody>
       </table>
-      <p className="mt-8 text-xs leading-relaxed text-black/80">
-        備考：本書は出張の目的・条件を定義するためのものです。交通宿泊等の実費は別途明細に計上します。
+      <p style={{ marginTop: "8mm", fontSize: "8pt", color: "#444444" }}>
+        備考：本書は出張の目的・条件を定義するものです。交通宿泊等の実費は別途明細に計上します。
       </p>
-      <div className="mt-12 flex justify-end gap-8 text-sm">
-        <span>申請者署名：＿＿＿＿＿＿＿＿</span>
-        <span>日付：＿＿＿＿＿＿</span>
-      </div>
-    </div>
+    </PdfPage>
   );
 });
 
@@ -105,43 +128,14 @@ export const TravelSiteSettlementSurface = React.forwardRef<
 >(function TravelSiteSettlementSurface({ expense }, ref) {
   const sum = totalYen(expense.items);
   return (
-    <div
-      ref={ref}
-      className={`${noto.className} w-[210mm] bg-white p-8 text-black`}
-    >
-      <h1 className="text-lg font-bold">出張経費精算（現場単位）</h1>
-      <p className="mt-1 text-sm">件名：{expense.title}</p>
-      <p className="text-xs text-black/70">
-        期間：{expense.startDate} — {expense.endDate}
-      </p>
-      <table className="mt-4 w-full border-collapse border border-black/80 text-sm">
-        <thead>
-          <tr>
-            <th className={th}>日付</th>
-            <th className={th}>区分</th>
-            <th className={th}>金額</th>
-            <th className={th}>摘要</th>
-            <th className={th}>領収</th>
-          </tr>
-        </thead>
-        <tbody>
-          {expense.items.map((it) => (
-            <tr key={it.id}>
-              <td className={box}>{it.date}</td>
-              <td className={box}>{it.category}</td>
-              <td className={`${box} text-right`}>
-                ¥{it.amount.toLocaleString("ja-JP")}
-              </td>
-              <td className={box}>{it.description}</td>
-              <td className={box}>{it.hasReceipt ? "有" : "無"}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <p className="mt-4 text-right text-base font-bold">
-        合計：¥{sum.toLocaleString("ja-JP")}
-      </p>
-    </div>
+    <PdfPage refProp={ref}>
+      <SettlementPdfHeader
+        documentLabel="出張経費精算書"
+        title={expense.title}
+        metaLines={[`出張期間：${expense.startDate} 〜 ${expense.endDate}`]}
+      />
+      <SettlementLineItemsTable items={expense.items} totalYen={sum} />
+    </PdfPage>
   );
 });
 
@@ -150,57 +144,37 @@ export const MonthlyTravelSurface = React.forwardRef<
   { expenses: ExpenseRecord[]; ym: string }
 >(function MonthlyTravelSurface({ expenses, ym }, ref) {
   const list = filterTravelExpensesForMonth(expenses, ym);
-  return (
-    <div
-      ref={ref}
-      className={`${noto.className} w-[210mm] bg-white p-8 text-black`}
-    >
-      <h1 className="text-lg font-bold">出張経費精算書（月次集計）</h1>
-      <p className="text-sm">対象月：{formatSettlementMonthJa(ym)}</p>
-      {list.length === 0 ? (
-        <p className="mt-4 text-sm text-black/60">
+  const monthLabel = formatSettlementMonthJa(ym);
+
+  if (list.length === 0) {
+    return (
+      <PdfPage refProp={ref}>
+        <SettlementPdfHeader
+          documentLabel={`出張経費精算書（月次）　対象月：${monthLabel}`}
+          title="（該当なし）"
+        />
+        <p style={{ fontSize: "9pt", color: "#666666" }}>
           この月に重なる出張経費はありません。
         </p>
-      ) : (
-        list.map((e) => {
-          const sum = totalYen(e.items);
-          return (
-            <section key={e.id} className="mt-6">
-              <h2 className="text-base font-bold">{e.title}</h2>
-              <p className="text-xs text-black/70">
-                期間：{e.startDate} — {e.endDate}
-              </p>
-              <table className="mt-2 w-full border-collapse border border-black/80 text-xs">
-                <thead>
-                  <tr>
-                    <th className={th}>日付</th>
-                    <th className={th}>区分</th>
-                    <th className={th}>金額</th>
-                    <th className={th}>摘要</th>
-                    <th className={th}>領収</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {e.items.map((it) => (
-                    <tr key={it.id}>
-                      <td className={box}>{it.date}</td>
-                      <td className={box}>{it.category}</td>
-                      <td className={`${box} text-right`}>
-                        ¥{it.amount.toLocaleString("ja-JP")}
-                      </td>
-                      <td className={box}>{it.description}</td>
-                      <td className={box}>{it.hasReceipt ? "有" : "無"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="mt-2 text-right text-sm font-semibold">
-                小計：¥{sum.toLocaleString("ja-JP")}
-              </p>
-            </section>
-          );
-        })
-      )}
+      </PdfPage>
+    );
+  }
+
+  return (
+    <div ref={ref} style={{ fontFamily: noto.style.fontFamily }}>
+      {list.map((e, i) => (
+        <PdfPage key={e.id}>
+          <SettlementPdfHeader
+            documentLabel={`出張経費精算書（月次）　対象月：${monthLabel}${list.length > 1 ? `　${i + 1}/${list.length}` : ""}`}
+            title={e.title}
+            metaLines={[`出張期間：${e.startDate} 〜 ${e.endDate}`]}
+          />
+          <SettlementLineItemsTable
+            items={e.items}
+            totalYen={totalYen(e.items)}
+          />
+        </PdfPage>
+      ))}
     </div>
   );
 });
@@ -210,38 +184,63 @@ export const MonthlyGeneralSurface = React.forwardRef<
   { expenses: ExpenseRecord[]; ym: string }
 >(function MonthlyGeneralSurface({ expenses, ym }, ref) {
   const rows = buildMonthlyGeneralRows(expenses, ym);
+  const monthLabel = formatSettlementMonthJa(ym);
+  const dataRows = rows.slice(1);
+
+  if (dataRows.length === 0) {
+    return (
+      <PdfPage refProp={ref}>
+        <SettlementPdfHeader
+          documentLabel={`経費精算書（月次）　精算月：${monthLabel}`}
+          title="（該当なし）"
+        />
+        <p style={{ fontSize: "9pt", color: "#666666" }}>
+          この月の一般経費はありません。
+        </p>
+      </PdfPage>
+    );
+  }
+
+  const byTitle = new Map<string, (string | number)[][]>();
+  for (const row of dataRows) {
+    const title = String(row[1] ?? "");
+    if (!byTitle.has(title)) byTitle.set(title, []);
+    byTitle.get(title)!.push(row);
+  }
+
+  const groups = [...byTitle.entries()];
+
   return (
-    <div
-      ref={ref}
-      className={`${noto.className} w-[210mm] bg-white p-8 text-black`}
-    >
-      <h1 className="text-lg font-bold">経費精算書（月次集計）</h1>
-      <p className="text-sm">対象月：{formatSettlementMonthJa(ym)}</p>
-      <table className="mt-4 w-full border-collapse border border-black/80 text-xs">
-        <thead>
-          <tr>
-            {rows[0].map((h, i) => (
-              <th key={i} className={th}>
-                {h}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.slice(1).map((r, ri) => (
-            <tr key={ri}>
-              {r.map((c, ci) => (
-                <td key={ci} className={box}>
-                  {c}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      {rows.length <= 1 ? (
-        <p className="mt-4 text-sm text-black/60">この月の一般経費はありません。</p>
-      ) : null}
+    <div ref={ref} style={{ fontFamily: noto.style.fontFamily }}>
+      {groups.map(([title, groupRows], i) => {
+        let sum = 0;
+        const items: ExpenseItem[] = groupRows.map((row, ri) => {
+          const amount = Number(row[4]) || 0;
+          sum += amount;
+          return normalizeExpenseItem({
+            id: `${title}-${ri}-${row[2]}`,
+            expenseId: title,
+            date: String(row[2] ?? ""),
+            category: String(row[3] ?? ""),
+            amount,
+            description: String(row[8] ?? ""),
+            hasReceipt: row[9] === "あり",
+            hasInvoice: row[10] === "あり",
+            invoiceNumber: row[11] ? String(row[11]) : null,
+            consumptionTaxRate: "0",
+          });
+        });
+
+        return (
+          <PdfPage key={title}>
+            <SettlementPdfHeader
+              documentLabel={`経費精算書（月次）　精算月：${monthLabel}${groups.length > 1 ? `　${i + 1}/${groups.length}` : ""}`}
+              title={title}
+            />
+            <SettlementLineItemsTable items={items} totalYen={sum} />
+          </PdfPage>
+        );
+      })}
     </div>
   );
 });
