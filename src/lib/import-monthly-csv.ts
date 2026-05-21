@@ -232,6 +232,16 @@ function importTravelRows(
 
   const out: ExpenseRecord[] = [];
   for (const g of groups.values()) {
+    if (!g.startDate && g.items.length > 0) {
+      const dates = g.items
+        .map((it) => it.date)
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b));
+      if (dates.length > 0) {
+        g.startDate = dates[0]!;
+        g.endDate = dates[dates.length - 1]!;
+      }
+    }
     if (!g.startDate || g.items.length === 0) continue;
     const id = crypto.randomUUID();
     let base = createTravelExpensePayload({

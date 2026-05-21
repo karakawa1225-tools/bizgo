@@ -8,10 +8,10 @@ import {
   splitTaxIncludedYen,
   toConsumptionTaxRateKey,
 } from "@/lib/consumption-tax";
+import { travelExpenseOverlapsMonth } from "@/lib/expense-list-utils";
 import {
   countTravelDaysInclusive,
   deriveTravelAmounts,
-  monthBounds,
 } from "@/lib/travel-calculations";
 
 /** 出張期間が対象月（YYYY-MM）と重なる申請 */
@@ -19,12 +19,8 @@ export function filterTravelExpensesForMonth(
   expenses: ExpenseRecord[],
   ym: string,
 ): ExpenseRecord[] {
-  const { start: monthStart, end: monthEnd } = monthBounds(ym);
   return expenses.filter(
-    (e) =>
-      e.type === "出張" &&
-      e.startDate <= monthEnd &&
-      e.endDate >= monthStart,
+    (e) => e.type === "出張" && travelExpenseOverlapsMonth(e, ym),
   );
 }
 

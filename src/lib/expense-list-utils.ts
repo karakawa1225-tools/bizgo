@@ -1,5 +1,45 @@
 import type { ExpenseRecord } from "@/lib/expense-types";
 import type { ExpenseTypeLabel } from "@/lib/expenses-storage";
+import { monthBounds } from "@/lib/travel-calculations";
+
+/** 出張期間が YYYY-MM と重なるか（月次 CSV 出力と同じ基準） */
+export function travelExpenseOverlapsMonth(
+  e: ExpenseRecord,
+  ym: string,
+): boolean {
+  if (e.type !== "出張" || !e.startDate || !e.endDate) return false;
+  const { start: monthStart, end: monthEnd } = monthBounds(ym);
+  return e.startDate <= monthEnd && e.endDate >= monthStart;
+}
+
+/** 出張開始〜終了にまたがる YYYY-MM 一覧 */
+export function monthsOverlappingTravelExpense(e: ExpenseRecord): string[] {
+  if (e.type !== "出張" || !e.startDate || !e.endDate) return [];
+  return enumerateYmInclusive(
+    e.startDate.slice(0, 7),
+    e.endDate.slice(0, 7),
+  );
+}
+
+function enumerateYmInclusive(startYm: string, endYm: string): string[] {
+  const sm = startYm.match(/^(\d{4})-(\d{2})$/);
+  const em = endYm.match(/^(\d{4})-(\d{2})$/);
+  if (!sm || !em) return startYm === endYm && sm ? [startYm] : [];
+  let y = Number(sm[1]);
+  let m = Number(sm[2]);
+  const ey = Number(em[1]);
+  const emm = Number(em[2]);
+  const out: string[] = [];
+  while (y < ey || (y === ey && m <= emm)) {
+    out.push(`${y}-${String(m).padStart(2, "0")}`);
+    m += 1;
+    if (m > 12) {
+      m = 1;
+      y += 1;
+    }
+  }
+  return out;
+}
 
 /** 一覧の並び・タブ用の精算日（昇順キー） */
 export function getExpenseSettlementSortKey(e: ExpenseRecord): string {
@@ -42,7 +82,13 @@ export function collectTabMonths(
   const set = new Set<string>();
   for (const e of expenses) {
     if (e.type !== type) continue;
-    set.add(getExpenseTabYm(e));
+    if (type === "出張") {
+      for (const ym of monthsOverlappingTravelExpense(e)) {
+        set.add(ym);
+      }
+    } else {
+      set.add(getExpenseTabYm(e));
+    }
   }
   return [...set].sort((a, b) => b.localeCompare(a));
 }

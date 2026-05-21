@@ -11,6 +11,7 @@ import {
   getExpenseTabYm,
   pickDefaultTabYm,
   sortExpensesBySettlementAsc,
+  travelExpenseOverlapsMonth,
 } from "@/lib/expense-list-utils";
 import type { ExpenseTypeLabel } from "@/lib/expenses-storage";
 import { cn } from "@/lib/utils";
@@ -44,8 +45,10 @@ export function ExpenseListByType({
   }, [months, tabYm]);
 
   const visible = React.useMemo(() => {
-    const filtered = filterExpensesByType(expenses, type).filter(
-      (e) => getExpenseTabYm(e) === tabYm,
+    const filtered = filterExpensesByType(expenses, type).filter((e) =>
+      type === "出張"
+        ? travelExpenseOverlapsMonth(e, tabYm)
+        : getExpenseTabYm(e) === tabYm,
     );
     return sortExpensesBySettlementAsc(filtered);
   }, [expenses, type, tabYm]);
