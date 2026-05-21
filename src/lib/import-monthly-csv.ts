@@ -4,10 +4,7 @@ import {
   GENERAL_CSV_HEADERS,
   TRAVEL_CSV_HEADERS,
 } from "@/lib/csv-monthly-headers";
-import {
-  CONSUMPTION_TAX_OPTIONS,
-  type ConsumptionTaxRateKey,
-} from "@/lib/consumption-tax";
+import { consumptionTaxRateFromLabel } from "@/lib/consumption-tax";
 import { parseSettlementMonthJa } from "@/lib/export-monthly-general";
 import { EXPENSE_CATEGORIES } from "@/lib/demo-expenses";
 import {
@@ -55,15 +52,6 @@ function parseYesNo(raw: string): boolean {
   return t === "あり" || t === "有" || t === "true" || t === "1";
 }
 
-function taxRateFromLabel(label: string): ConsumptionTaxRateKey {
-  const t = label.trim();
-  const hit = CONSUMPTION_TAX_OPTIONS.find((o) => o.label === t);
-  if (hit) return hit.value;
-  if (t.includes("８") || t.includes("8")) return "8";
-  if (t.includes("１０") || t.includes("10")) return "10";
-  return "0";
-}
-
 function normalizeCategory(cat: string): string {
   const t = cat.trim();
   if ((EXPENSE_CATEGORIES as readonly string[]).includes(t)) return t;
@@ -96,7 +84,9 @@ function rowToLineItem(
     hasInvoice: hasInvoice && Boolean(invoiceNumber),
     invoiceNumber: hasInvoice && invoiceNumber ? invoiceNumber : null,
     receiptImageDataUrl: null,
-    consumptionTaxRate: taxRateFromLabel(csvCell(row, idx, "消費税区分")),
+    consumptionTaxRate: consumptionTaxRateFromLabel(
+      csvCell(row, idx, "消費税区分"),
+    ),
   };
 }
 

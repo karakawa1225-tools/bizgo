@@ -30,6 +30,16 @@ export function consumptionTaxRateLabel(
   return o?.label ?? CONSUMPTION_TAX_OPTIONS[0].label;
 }
 
+/** CSV・帳票ラベルや入力文字列から消費税区分キーへ */
+export function consumptionTaxRateFromLabel(label: string): ConsumptionTaxRateKey {
+  const t = label.trim();
+  const hit = CONSUMPTION_TAX_OPTIONS.find((o) => o.label === t);
+  if (hit) return hit.value;
+  if (t.includes("８") || t.includes("8")) return "8";
+  if (t.includes("１０") || t.includes("10")) return "10";
+  return "0";
+}
+
 /**
  * 税込金額から税抜金額と消費税額を求める（端数は税抜側を切り捨て、税額は差し引き）。
  * 10%: 税抜 = floor(税込 × 10 / 11)、8%: 税抜 = floor(税込 × 100 / 108)

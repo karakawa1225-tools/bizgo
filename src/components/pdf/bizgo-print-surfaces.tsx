@@ -8,12 +8,10 @@ import {
   SettlementPdfHeader,
   settlementPdfPageStyle,
 } from "@/components/pdf/settlement-pdf-layout";
-import type { ExpenseItem } from "@/db/schema";
 import type { ExpenseRecord } from "@/lib/expense-types";
-import { normalizeExpenseItem } from "@/lib/expense-item-fields";
 import { formatPdfYen } from "@/lib/pdf-format";
 import {
-  buildMonthlyGeneralRows,
+  filterGeneralExpensesForMonth,
   formatSettlementMonthJa,
 } from "@/lib/export-monthly-general";
 import { filterTravelExpensesForMonth } from "@/lib/export-monthly-travel";
@@ -191,11 +189,10 @@ export const MonthlyGeneralSurface = React.forwardRef<
   HTMLDivElement,
   { expenses: ExpenseRecord[]; ym: string }
 >(function MonthlyGeneralSurface({ expenses, ym }, ref) {
-  const rows = buildMonthlyGeneralRows(expenses, ym);
   const monthLabel = formatSettlementMonthJa(ym);
-  const dataRows = rows.slice(1);
+  const list = filterGeneralExpensesForMonth(expenses, ym);
 
-  if (dataRows.length === 0) {
+  if (list.length === 0) {
     return (
       <PdfPage refProp={ref}>
         <SettlementPdfHeader
@@ -209,49 +206,23 @@ export const MonthlyGeneralSurface = React.forwardRef<
     );
   }
 
-  const byTitle = new Map<string, (string | number)[][]>();
-  for (const row of dataRows) {
-    const title = String(row[1] ?? "");
-    if (!byTitle.has(title)) byTitle.set(title, []);
-    byTitle.get(title)!.push(row);
-  }
-
-  const groups = [...byTitle.entries()];
-
   return (
     <div ref={ref} style={{ fontFamily: noto.style.fontFamily }}>
-      {groups.map(([title, groupRows], i) => {
-        let sum = 0;
-        const items: ExpenseItem[] = groupRows.map((row, ri) => {
-          const amount = Number(row[4]) || 0;
-          sum += amount;
-          return normalizeExpenseItem({
-            id: `${title}-${ri}-${row[2]}`,
-            expenseId: title,
-            date: String(row[2] ?? ""),
-            category: String(row[3] ?? ""),
-            amount,
-            description: String(row[8] ?? ""),
-            hasReceipt: row[9] === "あり",
-            hasInvoice: row[10] === "あり",
-            invoiceNumber: row[11] ? String(row[11]) : null,
-            consumptionTaxRate: "0",
-          });
-        });
-
-        return (
-          <PdfPage
-            key={title}
-            pageBreakAfter={i < groups.length - 1}
-          >
-            <SettlementPdfHeader
-              documentLabel={`経費精算書（月次）　精算月：${monthLabel}${groups.length > 1 ? `　${i + 1}/${groups.length}` : ""}`}
-              title={title}
-            />
-            <SettlementLineItemsTable items={items} totalYen={sum} />
-          </PdfPage>
-        );
-      })}
+      {list.map((e, i) => (
+        <PdfPage
+          key={e.id}
+          pageBreakAfter={i < list.length - 1}
+        >
+          <SettlementPdfHeader
+            documentLabel={`経費精算書（月次）　精算月：${monthLabel}${list.length > 1 ? `　${i + 1}/${list.length}` : ""}`}
+            title={e.title}
+          />
+          <SettlementLineItemsTable
+            items={e.items}
+            totalYen={totalYen(e.items)}
+          />
+        </PdfPage>
+      ))}
     </div>
   );
 });

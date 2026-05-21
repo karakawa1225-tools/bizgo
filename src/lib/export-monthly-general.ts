@@ -39,9 +39,7 @@ export function buildMonthlyGeneralRows(
   const monthLabel = formatSettlementMonthJa(ym);
   const header = [...GENERAL_CSV_HEADERS];
   const rows: (string | number)[][] = [header];
-  const list = expenses.filter(
-    (e) => e.type === "一般経費" && e.settlementMonth === ym,
-  );
+  const list = filterGeneralExpensesForMonth(expenses, ym);
   for (const e of list) {
     for (const it of e.items) {
       const rate = toConsumptionTaxRateKey(it.consumptionTaxRate);
@@ -73,13 +71,21 @@ export function exportMonthlyGeneralCsv(
   downloadCsv(`経費精算_${ym}.csv`, rows);
 }
 
+/** 精算月（YYYY-MM）の一般経費申請一覧 */
+export function filterGeneralExpensesForMonth(
+  expenses: ExpenseRecord[],
+  ym: string,
+): ExpenseRecord[] {
+  return expenses.filter(
+    (e) => e.type === "一般経費" && e.settlementMonth === ym,
+  );
+}
+
 export function monthlyGeneralTotals(
   expenses: ExpenseRecord[],
   ym: string,
 ): { count: number; sum: number } {
-  const list = expenses.filter(
-    (e) => e.type === "一般経費" && e.settlementMonth === ym,
-  );
+  const list = filterGeneralExpensesForMonth(expenses, ym);
   let sum = 0;
   for (const e of list) sum += totalYen(e.items);
   return { count: list.length, sum };
